@@ -2,41 +2,75 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* Mobile-first AI Voice Chat Design System */
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Mobile-optimized background gradients */
+    --background: 220 15% 97%;
+    --background-gradient: linear-gradient(135deg, hsl(220 15% 97%), hsl(210 20% 95%));
+    --foreground: 215 25% 15%;
 
+    /* Card system with subtle elevation */
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 215 25% 15%;
+    --card-hover: 210 25% 98%;
 
+    /* Popovers and overlays */
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 215 25% 15%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* Voice-focused primary colors */
+    --primary: 213 75% 55%;
+    --primary-glow: 213 85% 65%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    /* Secondary for voice states */
+    --secondary: 210 20% 96%;
+    --secondary-foreground: 215 25% 25%;
+    --secondary-hover: 210 25% 92%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    /* Muted tones for subtle elements */
+    --muted: 210 20% 94%;
+    --muted-foreground: 215 15% 55%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    /* Accent for active states */
+    --accent: 142 75% 60%;
+    --accent-glow: 142 85% 70%;
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    /* Error states */
+    --destructive: 0 75% 60%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    /* Borders and inputs */
+    --border: 210 20% 88%;
+    --input: 210 20% 96%;
+    --ring: 213 75% 55%;
 
-    --radius: 0.5rem;
+    /* Voice recording states */
+    --recording: 0 75% 65%;
+    --recording-glow: 0 85% 75%;
+    --processing: 45 85% 65%;
+    --ready: 142 75% 60%;
+
+    /* Gradients for mobile interface */
+    --gradient-voice: linear-gradient(135deg, hsl(var(--accent)), hsl(var(--accent-glow)));
+    --gradient-recording: linear-gradient(135deg, hsl(var(--recording)), hsl(var(--recording-glow)));
+    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-glow)));
+    --gradient-subtle: linear-gradient(180deg, hsl(var(--background)), hsl(var(--muted)));
+
+    /* Mobile shadows */
+    --shadow-soft: 0 2px 10px -2px hsl(var(--primary) / 0.1);
+    --shadow-medium: 0 4px 20px -4px hsl(var(--primary) / 0.15);
+    --shadow-voice: 0 8px 30px -8px hsl(var(--accent) / 0.3);
+    --shadow-recording: 0 0 40px hsl(var(--recording) / 0.4);
+
+    /* Smooth transitions */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+    --radius: 1rem;
 
     --sidebar-background: 0 0% 98%;
 
