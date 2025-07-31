@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,96 +7,180 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useSupabaseAuth } from '@/components/SupabaseAuthProvider';
 import { useToast } from '@/hooks/use-toast';
-import { Mic, ArrowLeft } from 'lucide-react';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { Mic, ArrowLeft, Loader2 } from 'lucide-react';
 
-export default function Auth() {
+function AuthContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const { user, signUp, signIn, resetPassword } = useSupabaseAuth();
+  const [formData, setFormData] = useState({ email: '', password: '', displayName: '' });
+  const { user, signUp, signIn, resetPassword, isLoading: authLoading } = useSupabaseAuth();
   const { toast } = useToast();
+
+  useEffect(() => {
+    console.log('Auth page: User state changed', { hasUser: !!user, authLoading });
+  }, [user, authLoading]);
+
+  // Show loading state while auth is initializing
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-subtle p-4">
+        <Card className="w-full max-w-md shadow-medium">
+          <CardContent className="flex items-center justify-center py-8">
+            <div className="flex flex-col items-center space-y-4">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-muted-foreground">Loading...</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   // If user is already authenticated, redirect to main app
   if (user) {
+    console.log('Auth page: Redirecting authenticated user');
     return <Navigate to="/" replace />;
   }
 
   const handleSignUp = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    console.log('Auth: Starting sign up process');
     setIsLoading(true);
     
-    const formData = new FormData(e.currentTarget);
-    const email = formData.get('email') as string;
-    const password = formData.get('password') as string;
-    const displayName = formData.get('displayName') as string;
-    
-    const { error } = await signUp(email, password, displayName);
-    
-    if (error) {
+    try {
+      const formData = new FormData(e.currentTarget);
+      const email = formData.get('email') as string;
+      const password = formData.get('password') as string;
+      const displayName = formData.get('displayName') as string;
+
+      // Basic validation
+      if (!email || !password) {
+        throw new Error('Email and password are required');
+      }
+      if (password.length < 6) {
+        throw new Error('Password must be at least 6 characters long');
+      }
+      
+      console.log('Auth: Calling signUp with email:', email);
+      const { error } = await signUp(email, password, displayName);
+      
+      if (error) {
+        console.error('Auth: Sign up error:', error);
+        toast({
+          title: "Sign up failed",
+          description: error.message,
+          variant: "destructive",
+        });
+      } else {
+        console.log('Auth: Sign up successful');
+        toast({
+          title: "Check your email",
+          description: "We've sent you a confirmation link to complete your registration.",
+        });
+        // Clear form
+        setFormData({ email: '', password: '', displayName: '' });
+      }
+    } catch (err) {
+      console.error('Auth: Sign up exception:', err);
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
       toast({
         title: "Sign up failed",
-        description: error.message,
+        description: errorMessage,
         variant: "destructive",
       });
-    } else {
-      toast({
-        title: "Check your email",
-        description: "We've sent you a confirmation link to complete your registration.",
-      });
+    } finally {
+      setIsLoading(false);
     }
-    
-    setIsLoading(false);
   };
 
   const handleSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    console.log('Auth: Starting sign in process');
     setIsLoading(true);
     
-    const formData = new FormData(e.currentTarget);
-    const email = formData.get('email') as string;
-    const password = formData.get('password') as string;
-    
-    const { error } = await signIn(email, password);
-    
-    if (error) {
+    try {
+      const formData = new FormData(e.currentTarget);
+      const email = formData.get('email') as string;
+      const password = formData.get('password') as string;
+
+      // Basic validation
+      if (!email || !password) {
+        throw new Error('Email and password are required');
+      }
+      
+      console.log('Auth: Calling signIn with email:', email);
+      const { error } = await signIn(email, password);
+      
+      if (error) {
+        console.error('Auth: Sign in error:', error);
+        toast({
+          title: "Sign in failed",
+          description: error.message,
+          variant: "destructive",
+        });
+      } else {
+        console.log('Auth: Sign in successful');
+        toast({
+          title: "Welcome back!",
+          description: "You've been signed in successfully.",
+        });
+      }
+    } catch (err) {
+      console.error('Auth: Sign in exception:', err);
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
       toast({
         title: "Sign in failed",
-        description: error.message,
+        description: errorMessage,
         variant: "destructive",
       });
-    } else {
-      toast({
-        title: "Welcome back!",
-        description: "You've been signed in successfully.",
-      });
+    } finally {
+      setIsLoading(false);
     }
-    
-    setIsLoading(false);
   };
 
   const handleResetPassword = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    console.log('Auth: Starting password reset process');
     setIsLoading(true);
     
-    const formData = new FormData(e.currentTarget);
-    const email = formData.get('email') as string;
-    
-    const { error } = await resetPassword(email);
-    
-    if (error) {
+    try {
+      const formData = new FormData(e.currentTarget);
+      const email = formData.get('email') as string;
+
+      if (!email) {
+        throw new Error('Email is required');
+      }
+      
+      console.log('Auth: Calling resetPassword with email:', email);
+      const { error } = await resetPassword(email);
+      
+      if (error) {
+        console.error('Auth: Password reset error:', error);
+        toast({
+          title: "Password reset failed",
+          description: error.message,
+          variant: "destructive",
+        });
+      } else {
+        console.log('Auth: Password reset successful');
+        toast({
+          title: "Check your email",
+          description: "We've sent you a password reset link.",
+        });
+        setShowForgotPassword(false);
+      }
+    } catch (err) {
+      console.error('Auth: Password reset exception:', err);
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
       toast({
         title: "Password reset failed",
-        description: error.message,
+        description: errorMessage,
         variant: "destructive",
       });
-    } else {
-      toast({
-        title: "Check your email",
-        description: "We've sent you a password reset link.",
-      });
-      setShowForgotPassword(false);
+    } finally {
+      setIsLoading(false);
     }
-    
-    setIsLoading(false);
   };
 
   if (showForgotPassword) {
@@ -186,6 +270,8 @@ export default function Auth() {
                     placeholder="Enter your email"
                     required
                     className="h-12"
+                    value={formData.email}
+                    onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
                   />
                 </div>
                 <div className="space-y-2">
@@ -197,14 +283,23 @@ export default function Auth() {
                     placeholder="Enter your password"
                     required
                     className="h-12"
+                    value={formData.password}
+                    onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
                   />
                 </div>
                 <Button
                   type="submit"
                   className="w-full"
-                  disabled={isLoading}
+                  disabled={isLoading || authLoading}
                 >
-                  {isLoading ? 'Signing in...' : 'Sign In'}
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Signing in...
+                    </>
+                  ) : (
+                    'Sign In'
+                  )}
                 </Button>
                 <Button
                   type="button"
@@ -227,6 +322,8 @@ export default function Auth() {
                     type="text"
                     placeholder="Enter your name"
                     className="h-12"
+                    value={formData.displayName}
+                    onChange={(e) => setFormData(prev => ({ ...prev, displayName: e.target.value }))}
                   />
                 </div>
                 <div className="space-y-2">
@@ -238,6 +335,8 @@ export default function Auth() {
                     placeholder="Enter your email"
                     required
                     className="h-12"
+                    value={formData.email}
+                    onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
                   />
                 </div>
                 <div className="space-y-2">
@@ -246,17 +345,26 @@ export default function Auth() {
                     id="signup-password"
                     name="password"
                     type="password"
-                    placeholder="Create a password"
+                    placeholder="Create a password (min. 6 characters)"
                     required
                     className="h-12"
+                    value={formData.password}
+                    onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
                   />
                 </div>
                 <Button
                   type="submit"
                   className="w-full"
-                  disabled={isLoading}
+                  disabled={isLoading || authLoading}
                 >
-                  {isLoading ? 'Creating account...' : 'Create Account'}
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Creating account...
+                    </>
+                  ) : (
+                    'Create Account'
+                  )}
                 </Button>
               </form>
             </TabsContent>
@@ -264,5 +372,13 @@ export default function Auth() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function Auth() {
+  return (
+    <ErrorBoundary>
+      <AuthContent />
+    </ErrorBoundary>
   );
 }

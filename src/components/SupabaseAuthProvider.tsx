@@ -47,41 +47,70 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signUp = async (email: string, password: string, displayName?: string) => {
-    const redirectUrl = `${window.location.origin}/`;
-    
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: redirectUrl,
-        data: {
-          display_name: displayName
+    try {
+      console.log('SupabaseAuthProvider: signUp called', { email, hasDisplayName: !!displayName });
+      const redirectUrl = `${window.location.origin}/`;
+      
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: redirectUrl,
+          data: displayName ? { display_name: displayName } : undefined
         }
-      }
-    });
-    return { error };
+      });
+      
+      console.log('SupabaseAuthProvider: signUp response', { hasError: !!error });
+      return { error };
+    } catch (err) {
+      console.error('SupabaseAuthProvider: signUp exception', err);
+      return { error: err as Error };
+    }
   };
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    });
-    return { error };
+    try {
+      console.log('SupabaseAuthProvider: signIn called', { email });
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+      
+      console.log('SupabaseAuthProvider: signIn response', { hasError: !!error });
+      return { error };
+    } catch (err) {
+      console.error('SupabaseAuthProvider: signIn exception', err);
+      return { error: err as Error };
+    }
   };
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    return { error };
+    try {
+      console.log('SupabaseAuthProvider: signOut called');
+      const { error } = await supabase.auth.signOut();
+      console.log('SupabaseAuthProvider: signOut response', { hasError: !!error });
+      return { error };
+    } catch (err) {
+      console.error('SupabaseAuthProvider: signOut exception', err);
+      return { error: err as Error };
+    }
   };
 
   const resetPassword = async (email: string) => {
-    const redirectUrl = `${window.location.origin}/`;
-    
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: redirectUrl
-    });
-    return { error };
+    try {
+      console.log('SupabaseAuthProvider: resetPassword called', { email });
+      const redirectUrl = `${window.location.origin}/`;
+      
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: redirectUrl
+      });
+      
+      console.log('SupabaseAuthProvider: resetPassword response', { hasError: !!error });
+      return { error };
+    } catch (err) {
+      console.error('SupabaseAuthProvider: resetPassword exception', err);
+      return { error: err as Error };
+    }
   };
 
   return (
