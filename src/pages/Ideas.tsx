@@ -11,6 +11,16 @@ import { useProfile } from '@/hooks/useProfile';
 import { Bot, Lightbulb, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface Idea {
   id: string;
@@ -26,6 +36,8 @@ const Ideas = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [ideas, setIdeas] = useState<Idea[]>([]);
   const [isLoadingIdeas, setIsLoadingIdeas] = useState(true);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [ideaToDelete, setIdeaToDelete] = useState<Idea | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -59,12 +71,19 @@ const Ideas = () => {
     }
   };
 
-  const deleteIdea = async (ideaId: string) => {
+  const handleDeleteClick = (idea: Idea) => {
+    setIdeaToDelete(idea);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!ideaToDelete) return;
+
     try {
       const { error } = await supabase
         .from('ideas')
         .delete()
-        .eq('id', ideaId);
+        .eq('id', ideaToDelete.id);
 
       if (error) {
         console.error('Error deleting idea:', error);
@@ -74,7 +93,7 @@ const Ideas = () => {
           variant: "destructive"
         });
       } else {
-        setIdeas(ideas.filter(idea => idea.id !== ideaId));
+        setIdeas(ideas.filter(idea => idea.id !== ideaToDelete.id));
         toast({
           title: "Idea deleted",
           description: "Your idea has been removed.",
@@ -82,6 +101,9 @@ const Ideas = () => {
       }
     } catch (error) {
       console.error('Error deleting idea:', error);
+    } finally {
+      setDeleteDialogOpen(false);
+      setIdeaToDelete(null);
     }
   };
 
@@ -156,7 +178,7 @@ const Ideas = () => {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => deleteIdea(idea.id)}
+                              onClick={() => handleDeleteClick(idea)}
                               className="opacity-0 group-hover:opacity-100 transition-opacity p-1 h-auto hover:bg-primary-foreground/20"
                             >
                               <Trash2 className="h-3 w-3 text-primary-foreground" />
@@ -190,6 +212,28 @@ const Ideas = () => {
       {showSettings && (
         <Settings onClose={() => setShowSettings(false)} />
       )}
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Idea</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this idea? This action cannot be undone.
+              {ideaToDelete && (
+                <div className="mt-2 p-2 bg-muted rounded text-sm">
+                  "{ideaToDelete.content.substring(0, 100)}{ideaToDelete.content.length > 100 ? '...' : ''}"
+                </div>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
