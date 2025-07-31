@@ -44,7 +44,7 @@ export function ChatInterface({ apiKey }: ChatInterfaceProps) {
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         content: apiKey 
-          ? `I've received your idea: "${content}". This would be processed using your OpenAI API key and stored as an idea for future reference. The AI response functionality will be implemented once the OpenAI integration is complete.`
+          ? `I've received your idea: "${content}". Thanks for using Voice Ideas! Your API key is configured and ready to use.`
           : 'Please configure your OpenAI API key in the settings to enable AI responses.',
         sender: 'assistant',
         timestamp: new Date(),

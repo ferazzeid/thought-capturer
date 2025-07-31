@@ -56,8 +56,13 @@ export function VoiceRecorder({ onSendMessage, isProcessing = false }: VoiceReco
       
       toast({
         title: "Recording stopped",
-        description: "Press send to submit your idea!",
+        description: "Processing your voice message...",
       });
+      
+      // Auto-send after a short delay to allow audio processing
+      setTimeout(() => {
+        sendRecording();
+      }, 500);
     }
   };
 
