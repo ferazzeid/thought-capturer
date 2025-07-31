@@ -233,24 +233,29 @@ const Ideas = () => {
                   <p className="text-sm text-muted-foreground">Start recording to capture your thoughts!</p>
                 </div>
               ) : (
-                <div className="space-y-4 p-4">
+                <div className="space-y-3 p-4">
                   {filteredIdeas.map((idea) => {
                     const ideaCategory = categories.find(cat => cat.id === idea.category_id);
                     
                     return (
                       <div key={idea.id} className="space-y-3">
                         {/* User Idea */}
-                        <div className="flex justify-end">
-                          <div className="bg-primary rounded-lg p-3 max-w-[80%] relative group">
-                            <div className="flex items-start space-x-2">
-                              <div className="flex-1">
-                                <p className="text-primary-foreground text-sm break-words">
+                        <div className="flex justify-start">
+                          <div className="bg-background border border-border rounded-lg p-4 w-full relative group">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1 space-y-2">
+                                <p className="text-foreground text-sm break-words">
                                   {idea.content}
                                 </p>
-                                <div className="flex items-center justify-between mt-2">
-                                  <p className="text-xs text-primary-foreground/70">
-                                    {formatDate(idea.created_at)}
-                                  </p>
+                                <div className="flex items-center gap-2">
+                                  {ideaCategory && (
+                                    <Badge 
+                                      variant="secondary" 
+                                      className="text-xs px-2 py-1 bg-blue-500 text-white hover:bg-blue-600 border-0"
+                                    >
+                                      {ideaCategory.name}
+                                    </Badge>
+                                  )}
                                   <CategoryPicker
                                     selectedCategoryId={idea.category_id}
                                     onCategorySelect={(categoryId) => updateIdeaCategory(idea.id, categoryId)}
@@ -258,21 +263,9 @@ const Ideas = () => {
                                       <Button
                                         variant="ghost"
                                         size="sm"
-                                        className="h-5 px-1 text-xs text-primary-foreground/70 hover:bg-primary-foreground/20 opacity-0 group-hover:opacity-100 transition-opacity"
+                                        className="h-6 px-2 text-xs text-muted-foreground hover:bg-secondary opacity-0 group-hover:opacity-100 transition-opacity"
                                       >
-                                        {ideaCategory ? (
-                                          <Badge 
-                                            variant="secondary" 
-                                            className="text-xs px-1 py-0 h-4"
-                                            style={{ 
-                                              backgroundColor: ideaCategory.color + '20', 
-                                              color: ideaCategory.color,
-                                              border: `1px solid ${ideaCategory.color}40`
-                                            }}
-                                          >
-                                            {ideaCategory.name}
-                                          </Badge>
-                                        ) : (
+                                        {!ideaCategory && (
                                           <span className="text-xs">+ Category</span>
                                         )}
                                       </Button>
@@ -284,9 +277,9 @@ const Ideas = () => {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => handleDeleteClick(idea)}
-                                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 h-auto hover:bg-primary-foreground/20"
+                                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 h-auto hover:bg-secondary"
                               >
-                                <Trash2 className="h-3 w-3 text-primary-foreground" />
+                                <Trash2 className="h-3 w-3 text-muted-foreground" />
                               </Button>
                             </div>
                           </div>
@@ -294,7 +287,7 @@ const Ideas = () => {
 
                         {/* AI Response */}
                         {idea.ai_response && (
-                          <div className="flex justify-start">
+                          <div className="flex justify-start ml-6">
                             <div className="bg-secondary rounded-lg p-3 max-w-[80%]">
                               <div className="flex items-start space-x-2">
                                 <Bot className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
