@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Header } from '@/components/Header';
 import { Settings } from '@/components/Settings';
+import { Navigation } from '@/components/Navigation';
 import { useProfile } from '@/hooks/useProfile';
 import { Bot, Lightbulb, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -110,6 +111,7 @@ const Ideas = () => {
         onOpenSettings={() => setShowSettings(true)}
         hasApiKey={!!profile?.api_key}
       />
+      <Navigation />
       
       <main className="pb-safe">
         <div className="flex flex-col h-full max-w-md mx-auto bg-gradient-subtle">
