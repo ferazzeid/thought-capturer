@@ -12,24 +12,28 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <SupabaseAuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/ideas" element={<Ideas />} />
-            <Route path="/mindmap" element={<MindMap />} />
-            <Route path="/auth" element={<Auth />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </SupabaseAuthProvider>
-  </QueryClientProvider>
-);
+const App = () => {
+  console.log('App: Rendering main App component');
+  
+  return (
+    <QueryClientProvider client={queryClient}>
+      <SupabaseAuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="/ideas" element={<Ideas />} />
+              <Route path="/mindmap" element={<MindMap />} />
+              <Route path="/auth" element={<Auth />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </SupabaseAuthProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;
