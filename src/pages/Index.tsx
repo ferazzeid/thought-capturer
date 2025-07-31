@@ -1,33 +1,40 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from '@/components/AuthProvider';
-import { LoginForm } from '@/components/LoginForm';
+import { useState } from 'react';
+import { Navigate } from 'react-router-dom';
+import { useSupabaseAuth } from '@/components/SupabaseAuthProvider';
 import { ChatInterface } from '@/components/ChatInterface';
 import { Settings } from '@/components/Settings';
 import { Header } from '@/components/Header';
+import { useProfile } from '@/hooks/useProfile';
 
 const Index = () => {
-  const { isAuthenticated } = useAuth();
+  const { user, isLoading } = useSupabaseAuth();
+  const { profile } = useProfile();
   const [showSettings, setShowSettings] = useState(false);
-  const [apiKey, setApiKey] = useState<string | null>(null);
 
-  useEffect(() => {
-    const storedApiKey = localStorage.getItem('voiceIdeas_apiKey');
-    setApiKey(storedApiKey);
-  }, [showSettings]); // Re-check when settings close
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-subtle">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
-  if (!isAuthenticated) {
-    return <LoginForm />;
+  if (!user) {
+    return <Navigate to="/auth" replace />;
   }
 
   return (
     <div className="min-h-screen bg-gradient-subtle">
       <Header 
         onOpenSettings={() => setShowSettings(true)}
-        hasApiKey={!!apiKey}
+        hasApiKey={!!profile?.api_key}
       />
       
       <main className="pb-safe">
-        <ChatInterface apiKey={apiKey || undefined} />
+        <ChatInterface apiKey={profile?.api_key || undefined} />
       </main>
 
       {showSettings && (

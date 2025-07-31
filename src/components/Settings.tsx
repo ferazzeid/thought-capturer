@@ -6,9 +6,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
-import { Settings as SettingsIcon, Key, Mic, Brain } from 'lucide-react';
+import { Settings as SettingsIcon, Key, Mic, Brain, User } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from './AuthProvider';
+import { useSupabaseAuth } from './SupabaseAuthProvider';
+import { useProfile } from '@/hooks/useProfile';
 
 interface SettingsProps {
   onClose: () => void;
@@ -16,62 +17,108 @@ interface SettingsProps {
 
 export function Settings({ onClose }: SettingsProps) {
   const [apiKey, setApiKey] = useState('');
-  const [voiceModel, setVoiceModel] = useState('whisper-1');
-  const [textModel, setTextModel] = useState('gpt-4o');
-  const [enableVoiceResponse, setEnableVoiceResponse] = useState(false);
+  const [displayName, setDisplayName] = useState('');
+  const [voiceModel, setVoiceModel] = useState('alloy');
+  const [textModel, setTextModel] = useState('gpt-4o-mini');
+  const [enableVoiceResponse, setEnableVoiceResponse] = useState(true);
   const [autoSaveIdeas, setAutoSaveIdeas] = useState(true);
-  const { logout } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
+  const { user, signOut } = useSupabaseAuth();
+  const { profile, updateProfile } = useProfile();
   const { toast } = useToast();
 
   useEffect(() => {
-    const storedApiKey = localStorage.getItem('voiceIdeas_apiKey');
-    const storedVoiceModel = localStorage.getItem('voiceIdeas_voiceModel');
-    const storedTextModel = localStorage.getItem('voiceIdeas_textModel');
-    const storedVoiceResponse = localStorage.getItem('voiceIdeas_enableVoiceResponse');
-    const storedAutoSave = localStorage.getItem('voiceIdeas_autoSaveIdeas');
+    if (profile) {
+      setApiKey(profile.api_key || '');
+      setDisplayName(profile.display_name || '');
+      setVoiceModel(profile.voice_model);
+      setTextModel(profile.text_model);
+      setEnableVoiceResponse(profile.voice_response);
+      setAutoSaveIdeas(profile.auto_save_ideas);
+    }
+  }, [profile]);
 
-    if (storedApiKey) setApiKey(storedApiKey);
-    if (storedVoiceModel) setVoiceModel(storedVoiceModel);
-    if (storedTextModel) setTextModel(storedTextModel);
-    if (storedVoiceResponse) setEnableVoiceResponse(storedVoiceResponse === 'true');
-    if (storedAutoSave) setAutoSaveIdeas(storedAutoSave === 'true');
-  }, []);
+  const handleSaveApiKey = async () => {
+    setIsLoading(true);
+    const { error } = await updateProfile({
+      api_key: apiKey.trim() || null
+    });
 
-  const handleSaveApiKey = () => {
-    if (apiKey.trim()) {
-      localStorage.setItem('voiceIdeas_apiKey', apiKey.trim());
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to save API key. Please try again.",
+        variant: "destructive"
+      });
+    } else {
       toast({
         title: "API Key saved",
         description: "Your OpenAI API key has been securely stored.",
       });
-    } else {
-      localStorage.removeItem('voiceIdeas_apiKey');
+    }
+    setIsLoading(false);
+  };
+
+  const handleSaveSettings = async () => {
+    setIsLoading(true);
+    const { error } = await updateProfile({
+      voice_model: voiceModel,
+      text_model: textModel,
+      voice_response: enableVoiceResponse,
+      auto_save_ideas: autoSaveIdeas
+    });
+
+    if (error) {
       toast({
-        title: "API Key removed",
-        description: "Your OpenAI API key has been cleared.",
+        title: "Error",
+        description: "Failed to save settings. Please try again.",
+        variant: "destructive"
+      });
+    } else {
+      toast({
+        title: "Settings saved",
+        description: "Your preferences have been updated.",
       });
     }
+    setIsLoading(false);
   };
 
-  const handleSaveSettings = () => {
-    localStorage.setItem('voiceIdeas_voiceModel', voiceModel);
-    localStorage.setItem('voiceIdeas_textModel', textModel);
-    localStorage.setItem('voiceIdeas_enableVoiceResponse', enableVoiceResponse.toString());
-    localStorage.setItem('voiceIdeas_autoSaveIdeas', autoSaveIdeas.toString());
-    
-    toast({
-      title: "Settings saved",
-      description: "Your preferences have been updated.",
+  const handleSaveProfile = async () => {
+    setIsLoading(true);
+    const { error } = await updateProfile({
+      display_name: displayName.trim() || null
     });
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to save profile. Please try again.",
+        variant: "destructive"
+      });
+    } else {
+      toast({
+        title: "Profile saved",
+        description: "Your profile has been updated.",
+      });
+    }
+    setIsLoading(false);
   };
 
-  const handleLogout = () => {
-    logout();
-    onClose();
-    toast({
-      title: "Logged out",
-      description: "You have been successfully logged out.",
-    });
+  const handleLogout = async () => {
+    const { error } = await signOut();
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to sign out. Please try again.",
+        variant: "destructive"
+      });
+    } else {
+      onClose();
+      toast({
+        title: "Signed out",
+        description: "You have been successfully signed out.",
+      });
+    }
   };
 
   return (
@@ -92,12 +139,51 @@ export function Settings({ onClose }: SettingsProps) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="api" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-3">
+          <Tabs defaultValue="profile" className="space-y-4">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="profile" className="text-xs">Profile</TabsTrigger>
               <TabsTrigger value="api" className="text-xs">API</TabsTrigger>
               <TabsTrigger value="voice" className="text-xs">Voice</TabsTrigger>
               <TabsTrigger value="ideas" className="text-xs">Ideas</TabsTrigger>
             </TabsList>
+
+            <TabsContent value="profile" className="space-y-4">
+              <div className="flex items-center space-x-2">
+                <User className="h-4 w-4 text-muted-foreground" />
+                <Label>Profile Information</Label>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={user?.email || ''}
+                  disabled
+                  className="bg-muted"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="displayName">Display Name</Label>
+                <Input
+                  id="displayName"
+                  type="text"
+                  placeholder="Enter your display name"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                />
+              </div>
+
+              <Button 
+                onClick={handleSaveProfile} 
+                size="sm" 
+                className="w-full"
+                disabled={isLoading}
+              >
+                {isLoading ? 'Saving...' : 'Save Profile'}
+              </Button>
+            </TabsContent>
 
             <TabsContent value="api" className="space-y-4">
               <div className="flex items-center space-x-2">
@@ -112,8 +198,13 @@ export function Settings({ onClose }: SettingsProps) {
                 onChange={(e) => setApiKey(e.target.value)}
                 className="font-mono text-sm"
               />
-              <Button onClick={handleSaveApiKey} size="sm" className="w-full">
-                Save API Key
+              <Button 
+                onClick={handleSaveApiKey} 
+                size="sm" 
+                className="w-full"
+                disabled={isLoading}
+              >
+                {isLoading ? 'Saving...' : 'Save API Key'}
               </Button>
               <p className="text-xs text-muted-foreground">
                 Your API key is stored locally and never shared.
@@ -162,8 +253,13 @@ export function Settings({ onClose }: SettingsProps) {
                 />
               </div>
 
-              <Button onClick={handleSaveSettings} size="sm" className="w-full">
-                Save Voice Settings
+              <Button 
+                onClick={handleSaveSettings} 
+                size="sm" 
+                className="w-full"
+                disabled={isLoading}
+              >
+                {isLoading ? 'Saving...' : 'Save Voice Settings'}
               </Button>
             </TabsContent>
 
@@ -186,16 +282,27 @@ export function Settings({ onClose }: SettingsProps) {
                 Ideas will be automatically saved to your database when Supabase is connected.
               </p>
 
-              <Button onClick={handleSaveSettings} size="sm" className="w-full">
-                Save Idea Settings
+              <Button 
+                onClick={handleSaveSettings} 
+                size="sm" 
+                className="w-full"
+                disabled={isLoading}
+              >
+                {isLoading ? 'Saving...' : 'Save Idea Settings'}
               </Button>
             </TabsContent>
           </Tabs>
 
           <Separator className="my-6" />
           
-          <Button onClick={handleLogout} variant="destructive" size="sm" className="w-full">
-            Logout
+          <Button 
+            onClick={handleLogout} 
+            variant="destructive" 
+            size="sm" 
+            className="w-full"
+            disabled={isLoading}
+          >
+            {isLoading ? 'Signing out...' : 'Sign Out'}
           </Button>
         </CardContent>
       </Card>
