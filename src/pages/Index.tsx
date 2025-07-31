@@ -4,6 +4,7 @@ import { useSupabaseAuth } from '@/components/SupabaseAuthProvider';
 import { ChatInterface } from '@/components/ChatInterface';
 import { Settings } from '@/components/Settings';
 import { Header } from '@/components/Header';
+import { Navigation } from '@/components/Navigation';
 import { useProfile } from '@/hooks/useProfile';
 
 const Index = () => {
@@ -32,6 +33,7 @@ const Index = () => {
         onOpenSettings={() => setShowSettings(true)}
         hasApiKey={!!profile?.api_key}
       />
+      <Navigation />
       
       <main className="pb-safe">
         <ChatInterface apiKey={profile?.api_key || undefined} />

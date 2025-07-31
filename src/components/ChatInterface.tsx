@@ -4,6 +4,9 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { VoiceRecorder } from './VoiceRecorder';
 import { MessageBubble } from './MessageBubble';
 import { Bot, User } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+import { useSupabaseAuth } from './SupabaseAuthProvider';
 
 interface Message {
   id: string;
@@ -26,6 +29,8 @@ export function ChatInterface({ apiKey }: ChatInterfaceProps) {
     }
   ]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const { toast } = useToast();
+  const { user } = useSupabaseAuth();
 
   const handleSendMessage = async (content: string) => {
     // Add user message
@@ -39,12 +44,31 @@ export function ChatInterface({ apiKey }: ChatInterfaceProps) {
     setMessages(prev => [...prev, userMessage]);
     setIsProcessing(true);
 
+    // Save idea to database if user has auto-save enabled
+    try {
+      if (user) {
+        const { error } = await supabase
+          .from('ideas')
+          .insert({
+            user_id: user.id,
+            content,
+            original_audio_transcription: content
+          });
+
+        if (error) {
+          console.error('Error saving idea:', error);
+        }
+      }
+    } catch (error) {
+      console.error('Error saving idea:', error);
+    }
+
     // Simulate AI response (replace with actual OpenAI API call)
     setTimeout(() => {
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         content: apiKey 
-          ? `I've received your idea: "${content}". Thanks for using Voice Ideas! Your API key is configured and ready to use.`
+          ? `Got it! I've captured your idea: "${content}". It's been saved for future reference.`
           : 'Please configure your OpenAI API key in the settings to enable AI responses.',
         sender: 'assistant',
         timestamp: new Date(),

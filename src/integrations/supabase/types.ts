@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      ideas: {
+        Row: {
+          ai_response: string | null
+          content: string
+          created_at: string
+          id: string
+          original_audio_transcription: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ai_response?: string | null
+          content: string
+          created_at?: string
+          id?: string
+          original_audio_transcription?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ai_response?: string | null
+          content?: string
+          created_at?: string
+          id?: string
+          original_audio_transcription?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           api_key: string | null

@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { SupabaseAuthProvider } from "./components/SupabaseAuthProvider";
 import Index from "./pages/Index";
+import Ideas from "./pages/Ideas";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -19,8 +20,8 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
+            <Route path="/ideas" element={<Ideas />} />
             <Route path="/auth" element={<Auth />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
