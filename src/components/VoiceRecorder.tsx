@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Mic, MicOff, Send, Square } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface VoiceRecorderProps {
   onSendMessage: (message: string) => void;
@@ -26,19 +27,52 @@ export function VoiceRecorder({ onSendMessage, isProcessing = false }: VoiceReco
         audioChunks.push(event.data);
       };
 
-      mediaRecorder.onstop = () => {
+      mediaRecorder.onstop = async () => {
         const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
         setAudioBlob(audioBlob);
         stream.getTracks().forEach(track => track.stop());
         
-        // Auto-send immediately without setting hasRecording state
-        const simulatedText = "Voice message recorded - OpenAI API integration needed";
-        onSendMessage(simulatedText);
-        
-        toast({
-          title: "Message sent",
-          description: "Your voice idea has been processed!",
-        });
+        try {
+          // Convert audio blob to base64
+          const reader = new FileReader();
+          reader.onloadend = async () => {
+            const base64Audio = reader.result as string;
+            const base64Data = base64Audio.split(',')[1]; // Remove data:audio/wav;base64, prefix
+            
+            console.log('Sending audio to voice-to-text function...');
+            
+            // Send to Supabase edge function
+            const { data, error } = await supabase.functions.invoke('voice-to-text', {
+              body: { audio: base64Data }
+            });
+            
+            if (error) {
+              console.error('Voice-to-text error:', error);
+              onSendMessage("Sorry, I couldn't process your voice message. Please try again.");
+              toast({
+                title: "Error",
+                description: "Failed to process voice message. Please try again.",
+                variant: "destructive"
+              });
+            } else {
+              console.log('Transcription received:', data.text);
+              onSendMessage(data.text || "Voice message processed");
+              toast({
+                title: "Message sent",
+                description: "Your voice idea has been processed!",
+              });
+            }
+          };
+          reader.readAsDataURL(audioBlob);
+        } catch (error) {
+          console.error('Error processing audio:', error);
+          onSendMessage("Sorry, I couldn't process your voice message. Please try again.");
+          toast({
+            title: "Error",
+            description: "Failed to process voice message.",
+            variant: "destructive"
+          });
+        }
       };
 
       mediaRecorder.start();
