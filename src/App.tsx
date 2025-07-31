@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { SupabaseAuthProvider } from "./components/SupabaseAuthProvider";
 import Index from "./pages/Index";
 import Ideas from "./pages/Ideas";
+import MindMap from "./pages/MindMap";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -21,6 +22,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/ideas" element={<Ideas />} />
+            <Route path="/mindmap" element={<MindMap />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
