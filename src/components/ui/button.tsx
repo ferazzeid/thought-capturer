@@ -20,6 +20,7 @@ const buttonVariants = cva(
         link: "text-primary underline-offset-4 hover:underline",
         voice: "bg-gradient-voice text-accent-foreground hover:shadow-voice hover:scale-110 active:scale-95 transition-all duration-300",
         recording: "bg-gradient-recording text-white hover:shadow-recording animate-pulse",
+        analyzing: "bg-gradient-primary text-primary-foreground hover:shadow-medium animate-pulse",
       },
       size: {
         default: "h-12 px-6 py-3",

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { VoiceRecorder } from './VoiceRecorder';
@@ -20,17 +20,42 @@ interface ChatInterfaceProps {
 }
 
 export function ChatInterface({ apiKey }: ChatInterfaceProps) {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      content: 'Hi! I\'m your AI assistant for capturing ideas. Record a voice message to get started!',
-      sender: 'assistant',
-      timestamp: new Date(),
+  // Load conversation from localStorage on component mount
+  const [messages, setMessages] = useState<Message[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('chat-messages');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          return parsed.map((msg: any) => ({
+            ...msg,
+            timestamp: new Date(msg.timestamp)
+          }));
+        } catch (e) {
+          console.error('Failed to parse saved messages:', e);
+        }
+      }
     }
-  ]);
+    return [
+      {
+        id: '1',
+        content: 'Hi! I\'m your AI assistant for capturing ideas. Record a voice message to get started!',
+        sender: 'assistant',
+        timestamp: new Date(),
+      }
+    ];
+  });
+  
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
   const { user } = useSupabaseAuth();
+
+  // Persist messages to localStorage whenever they change
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('chat-messages', JSON.stringify(messages));
+    }
+  }, [messages]);
 
   const handleSendMessage = async (content: string, voiceAnalysis?: any) => {
     // Add user message
@@ -47,7 +72,7 @@ export function ChatInterface({ apiKey }: ChatInterfaceProps) {
     // Save idea(s) to database if user is logged in
     try {
       if (user && voiceAnalysis?.ideas) {
-        const parentRecordingId = Date.now().toString(); // Generate unique ID for this recording session
+        const parentRecordingId = crypto.randomUUID(); // Generate proper UUID for this recording session
         
         // Save multiple ideas if they exist
         const ideasToSave = voiceAnalysis.ideas.map((idea: any, index: number) => ({

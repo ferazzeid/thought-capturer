@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { Mic, MicOff, Send, Square } from 'lucide-react';
+import { Mic, MicOff, Send, Square, Brain } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -13,6 +13,7 @@ export function VoiceRecorder({ onSendMessage, isProcessing = false }: VoiceReco
   const [isRecording, setIsRecording] = useState(false);
   const [hasRecording, setHasRecording] = useState(false);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const { toast } = useToast();
 
@@ -33,6 +34,8 @@ export function VoiceRecorder({ onSendMessage, isProcessing = false }: VoiceReco
         stream.getTracks().forEach(track => track.stop());
         
         try {
+          setIsAnalyzing(true);
+          
           // Convert audio blob to base64
           const reader = new FileReader();
           reader.onloadend = async () => {
@@ -41,37 +44,44 @@ export function VoiceRecorder({ onSendMessage, isProcessing = false }: VoiceReco
             
             console.log('Sending audio to voice-to-text function...');
             
-            // Send to Supabase edge function
-            const { data, error } = await supabase.functions.invoke('voice-to-text', {
-              body: { audio: base64Data }
-            });
-            
-            if (error) {
-              console.error('Voice-to-text error:', error);
-              onSendMessage("Sorry, I couldn't process your voice message. Please try again.");
-              toast({
-                title: "Error",
-                description: "Failed to process voice message. Please try again.",
-                variant: "destructive"
+            try {
+              // Send to Supabase edge function
+              const { data, error } = await supabase.functions.invoke('voice-to-text', {
+                body: { audio: base64Data }
               });
-            } else {
-              console.log('Transcription received:', data);
-              onSendMessage(data.text || "Voice message processed", data);
               
-              const ideaCount = data.ideas?.length || 1;
-              const isMultiple = data.multiple_ideas && ideaCount > 1;
-              
-              toast({
-                title: "Message sent",
-                description: isMultiple 
-                  ? `Found ${ideaCount} ideas in your recording!`
-                  : "Your voice idea has been processed!",
-              });
+              if (error) {
+                console.error('Voice-to-text error:', error);
+                onSendMessage("Sorry, I couldn't process your voice message. Please try again.");
+                toast({
+                  title: "Error",
+                  description: "Failed to process voice message. Please try again.",
+                  variant: "destructive"
+                });
+              } else {
+                console.log('Transcription received:', data);
+                onSendMessage(data.text || "Voice message processed", data);
+                
+                const ideaCount = data.ideas?.length || 1;
+                const isMultiple = data.multiple_ideas && ideaCount > 1;
+                
+                toast({
+                  title: "Ideas saved successfully!",
+                  description: isMultiple 
+                    ? `Found ${ideaCount} ideas in your recording!`
+                    : "Your voice idea has been processed!",
+                });
+              }
+            } finally {
+              setIsAnalyzing(false);
+              setHasRecording(false);
+              setAudioBlob(null);
             }
           };
           reader.readAsDataURL(audioBlob);
         } catch (error) {
           console.error('Error processing audio:', error);
+          setIsAnalyzing(false);
           onSendMessage("Sorry, I couldn't process your voice message. Please try again.");
           toast({
             title: "Error",
@@ -101,10 +111,11 @@ export function VoiceRecorder({ onSendMessage, isProcessing = false }: VoiceReco
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
+      setHasRecording(true);
       
       toast({
         title: "Recording stopped",
-        description: "Processing your voice message...",
+        description: "Ready to analyze your voice message...",
       });
     }
   };
@@ -138,17 +149,21 @@ export function VoiceRecorder({ onSendMessage, isProcessing = false }: VoiceReco
 
   const getButtonVariant = () => {
     if (isRecording) return 'recording';
+    if (isAnalyzing) return 'analyzing';
     if (hasRecording) return 'default';
     return 'voice';
   };
 
   const getButtonIcon = () => {
     if (isRecording) return <Square className="h-6 w-6" />;
+    if (isAnalyzing) return <Brain className="h-6 w-6" />;
     if (hasRecording) return <Send className="h-6 w-6" />;
     return <Mic className="h-6 w-6" />;
   };
 
   const handleMainButtonClick = () => {
+    if (isAnalyzing) return; // Don't allow clicks during analysis
+    
     if (isRecording) {
       stopRecording();
     } else if (hasRecording) {
@@ -164,12 +179,15 @@ export function VoiceRecorder({ onSendMessage, isProcessing = false }: VoiceReco
         onClick={handleMainButtonClick}
         variant={getButtonVariant()}
         size="voice"
-        disabled={isProcessing}
+        disabled={isProcessing || isAnalyzing}
         className="relative"
       >
         {getButtonIcon()}
         {isRecording && (
           <div className="absolute inset-0 rounded-full bg-recording/20 animate-ping" />
+        )}
+        {isAnalyzing && (
+          <div className="absolute inset-0 rounded-full bg-primary/20 animate-pulse" />
         )}
       </Button>
       
@@ -179,10 +197,18 @@ export function VoiceRecorder({ onSendMessage, isProcessing = false }: VoiceReco
             Recording... Tap to stop
           </p>
         )}
-        {hasRecording && (
+        {isAnalyzing && (
+          <div className="flex items-center justify-center space-x-2">
+            <Brain className="h-4 w-4 text-primary animate-pulse" />
+            <p className="text-sm text-muted-foreground animate-pulse">
+              Analyzing your ideas...
+            </p>
+          </div>
+        )}
+        {hasRecording && !isAnalyzing && (
           <div className="space-y-2">
             <p className="text-sm text-muted-foreground">
-              Ready to send your voice message
+              Ready to analyze your voice message
             </p>
             <Button
               onClick={cancelRecording}
@@ -194,7 +220,7 @@ export function VoiceRecorder({ onSendMessage, isProcessing = false }: VoiceReco
             </Button>
           </div>
         )}
-        {!isRecording && !hasRecording && (
+        {!isRecording && !hasRecording && !isAnalyzing && (
           <p className="text-sm text-muted-foreground">
             Tap to record your idea
           </p>
