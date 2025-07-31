@@ -5,7 +5,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
 interface VoiceRecorderProps {
-  onSendMessage: (message: string) => void;
+  onSendMessage: (message: string, voiceAnalysis?: any) => void;
   isProcessing?: boolean;
 }
 
@@ -55,11 +55,17 @@ export function VoiceRecorder({ onSendMessage, isProcessing = false }: VoiceReco
                 variant: "destructive"
               });
             } else {
-              console.log('Transcription received:', data.text);
-              onSendMessage(data.text || "Voice message processed");
+              console.log('Transcription received:', data);
+              onSendMessage(data.text || "Voice message processed", data);
+              
+              const ideaCount = data.ideas?.length || 1;
+              const isMultiple = data.multiple_ideas && ideaCount > 1;
+              
               toast({
                 title: "Message sent",
-                description: "Your voice idea has been processed!",
+                description: isMultiple 
+                  ? `Found ${ideaCount} ideas in your recording!`
+                  : "Your voice idea has been processed!",
               });
             }
           };

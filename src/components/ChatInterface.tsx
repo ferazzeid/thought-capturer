@@ -32,7 +32,7 @@ export function ChatInterface({ apiKey }: ChatInterfaceProps) {
   const { toast } = useToast();
   const { user } = useSupabaseAuth();
 
-  const handleSendMessage = async (content: string) => {
+  const handleSendMessage = async (content: string, voiceAnalysis?: any) => {
     // Add user message
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -44,9 +44,35 @@ export function ChatInterface({ apiKey }: ChatInterfaceProps) {
     setMessages(prev => [...prev, userMessage]);
     setIsProcessing(true);
 
-    // Save idea to database if user has auto-save enabled
+    // Save idea(s) to database if user is logged in
     try {
-      if (user) {
+      if (user && voiceAnalysis?.ideas) {
+        const parentRecordingId = Date.now().toString(); // Generate unique ID for this recording session
+        
+        // Save multiple ideas if they exist
+        const ideasToSave = voiceAnalysis.ideas.map((idea: any, index: number) => ({
+          user_id: user.id,
+          content: idea.content,
+          original_audio_transcription: content,
+          category_id: idea.category_id,
+          parent_recording_id: parentRecordingId,
+          idea_sequence: idea.sequence || index + 1
+        }));
+
+        const { error } = await supabase
+          .from('ideas')
+          .insert(ideasToSave);
+
+        if (error) {
+          console.error('Error saving ideas:', error);
+          toast({
+            title: "Error",
+            description: "Failed to save your ideas. Please try again.",
+            variant: "destructive"
+          });
+        }
+      } else if (user) {
+        // Fallback: save single idea if no voice analysis
         const { error } = await supabase
           .from('ideas')
           .insert({
@@ -60,16 +86,29 @@ export function ChatInterface({ apiKey }: ChatInterfaceProps) {
         }
       }
     } catch (error) {
-      console.error('Error saving idea:', error);
+      console.error('Error saving ideas:', error);
     }
 
-    // Simulate AI response (replace with actual OpenAI API call)
+    // Generate AI response based on analysis
     setTimeout(() => {
+      let responseContent = '';
+      
+      if (voiceAnalysis?.multiple_ideas && voiceAnalysis?.ideas?.length > 1) {
+        const ideaCount = voiceAnalysis.ideas.length;
+        responseContent = `Great! I found ${ideaCount} distinct ideas in your recording:\n\n`;
+        voiceAnalysis.ideas.forEach((idea: any, index: number) => {
+          responseContent += `${index + 1}. ${idea.content}\n`;
+        });
+        responseContent += `\nAll ideas have been saved and categorized for you!`;
+      } else if (apiKey) {
+        responseContent = `Got it! I've captured your idea: "${content}". It's been saved for future reference.`;
+      } else {
+        responseContent = 'Please configure your OpenAI API key in the settings to enable AI responses.';
+      }
+
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
-        content: apiKey 
-          ? `Got it! I've captured your idea: "${content}". It's been saved for future reference.`
-          : 'Please configure your OpenAI API key in the settings to enable AI responses.',
+        content: responseContent,
         sender: 'assistant',
         timestamp: new Date(),
       };

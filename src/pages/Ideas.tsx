@@ -8,9 +8,12 @@ import { Header } from '@/components/Header';
 import { Settings } from '@/components/Settings';
 import { Navigation } from '@/components/Navigation';
 import { useProfile } from '@/hooks/useProfile';
-import { Bot, Lightbulb, Trash2 } from 'lucide-react';
+import { Bot, Lightbulb, Trash2, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { Badge } from '@/components/ui/badge';
+import { CategoryPicker } from '@/components/CategoryPicker';
+import { useCategories } from '@/hooks/useCategories';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,6 +24,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface Idea {
   id: string;
@@ -28,6 +38,9 @@ interface Idea {
   original_audio_transcription: string | null;
   ai_response: string | null;
   created_at: string;
+  category_id: string | null;
+  parent_recording_id: string | null;
+  idea_sequence: number;
 }
 
 const Ideas = () => {
@@ -38,6 +51,8 @@ const Ideas = () => {
   const [isLoadingIdeas, setIsLoadingIdeas] = useState(true);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [ideaToDelete, setIdeaToDelete] = useState<Idea | null>(null);
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
+  const { categories } = useCategories();
   const { toast } = useToast();
 
   useEffect(() => {
@@ -107,6 +122,41 @@ const Ideas = () => {
     }
   };
 
+  const updateIdeaCategory = async (ideaId: string, categoryId: string | null) => {
+    try {
+      const { error } = await supabase
+        .from('ideas')
+        .update({ category_id: categoryId })
+        .eq('id', ideaId);
+
+      if (error) {
+        console.error('Error updating idea category:', error);
+        toast({
+          title: "Error",
+          description: "Failed to update category. Please try again.",
+          variant: "destructive"
+        });
+      } else {
+        setIdeas(ideas.map(idea => 
+          idea.id === ideaId ? { ...idea, category_id: categoryId } : idea
+        ));
+        const categoryName = categories.find(c => c.id === categoryId)?.name || 'No category';
+        toast({
+          title: "Category updated",
+          description: `Idea moved to "${categoryName}".`,
+        });
+      }
+    } catch (error) {
+      console.error('Error updating idea category:', error);
+    }
+  };
+
+  const filteredIdeas = ideas.filter(idea => {
+    if (selectedCategoryFilter === 'all') return true;
+    if (selectedCategoryFilter === 'uncategorized') return !idea.category_id;
+    return idea.category_id === selectedCategoryFilter;
+  });
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -139,12 +189,35 @@ const Ideas = () => {
         <div className="flex flex-col h-full max-w-md mx-auto bg-gradient-subtle">
           <Card className="flex-1 m-4 mb-2 shadow-soft">
             <div className="p-4 border-b border-border">
-              <div className="flex items-center space-x-2">
-                <Lightbulb className="h-5 w-5 text-primary" />
-                <h2 className="text-lg font-semibold text-foreground">Your Ideas</h2>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Lightbulb className="h-5 w-5 text-primary" />
+                  <h2 className="text-lg font-semibold text-foreground">Your Ideas</h2>
+                </div>
+                <Select value={selectedCategoryFilter} onValueChange={setSelectedCategoryFilter}>
+                  <SelectTrigger className="w-32 h-8">
+                    <Filter className="h-3 w-3 mr-1" />
+                    <SelectValue placeholder="Filter" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="uncategorized">No category</SelectItem>
+                    {categories.map((category) => (
+                      <SelectItem key={category.id} value={category.id}>
+                        <div className="flex items-center gap-2">
+                          <div 
+                            className="w-2 h-2 rounded-full" 
+                            style={{ backgroundColor: category.color }}
+                          />
+                          {category.name}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <p className="text-sm text-muted-foreground mt-1">
-                {ideas.length} saved ideas
+                {filteredIdeas.length} of {ideas.length} ideas
               </p>
             </div>
             
@@ -161,47 +234,80 @@ const Ideas = () => {
                 </div>
               ) : (
                 <div className="space-y-4 p-4">
-                  {ideas.map((idea) => (
-                    <div key={idea.id} className="space-y-3">
-                      {/* User Idea */}
-                      <div className="flex justify-end">
-                        <div className="bg-primary rounded-lg p-3 max-w-[80%] relative group">
-                          <div className="flex items-start space-x-2">
-                            <div className="flex-1">
-                              <p className="text-primary-foreground text-sm break-words">
-                                {idea.content}
-                              </p>
-                              <p className="text-xs text-primary-foreground/70 mt-1">
-                                {formatDate(idea.created_at)}
-                              </p>
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDeleteClick(idea)}
-                              className="opacity-0 group-hover:opacity-100 transition-opacity p-1 h-auto hover:bg-primary-foreground/20"
-                            >
-                              <Trash2 className="h-3 w-3 text-primary-foreground" />
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* AI Response */}
-                      {idea.ai_response && (
-                        <div className="flex justify-start">
-                          <div className="bg-secondary rounded-lg p-3 max-w-[80%]">
+                  {filteredIdeas.map((idea) => {
+                    const ideaCategory = categories.find(cat => cat.id === idea.category_id);
+                    
+                    return (
+                      <div key={idea.id} className="space-y-3">
+                        {/* User Idea */}
+                        <div className="flex justify-end">
+                          <div className="bg-primary rounded-lg p-3 max-w-[80%] relative group">
                             <div className="flex items-start space-x-2">
-                              <Bot className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
-                              <p className="text-secondary-foreground text-sm break-words">
-                                {idea.ai_response}
-                              </p>
+                              <div className="flex-1">
+                                <p className="text-primary-foreground text-sm break-words">
+                                  {idea.content}
+                                </p>
+                                <div className="flex items-center justify-between mt-2">
+                                  <p className="text-xs text-primary-foreground/70">
+                                    {formatDate(idea.created_at)}
+                                  </p>
+                                  <CategoryPicker
+                                    selectedCategoryId={idea.category_id}
+                                    onCategorySelect={(categoryId) => updateIdeaCategory(idea.id, categoryId)}
+                                    trigger={
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-5 px-1 text-xs text-primary-foreground/70 hover:bg-primary-foreground/20 opacity-0 group-hover:opacity-100 transition-opacity"
+                                      >
+                                        {ideaCategory ? (
+                                          <Badge 
+                                            variant="secondary" 
+                                            className="text-xs px-1 py-0 h-4"
+                                            style={{ 
+                                              backgroundColor: ideaCategory.color + '20', 
+                                              color: ideaCategory.color,
+                                              border: `1px solid ${ideaCategory.color}40`
+                                            }}
+                                          >
+                                            {ideaCategory.name}
+                                          </Badge>
+                                        ) : (
+                                          <span className="text-xs">+ Category</span>
+                                        )}
+                                      </Button>
+                                    }
+                                  />
+                                </div>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteClick(idea)}
+                                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 h-auto hover:bg-primary-foreground/20"
+                              >
+                                <Trash2 className="h-3 w-3 text-primary-foreground" />
+                              </Button>
                             </div>
                           </div>
                         </div>
-                      )}
-                    </div>
-                  ))}
+
+                        {/* AI Response */}
+                        {idea.ai_response && (
+                          <div className="flex justify-start">
+                            <div className="bg-secondary rounded-lg p-3 max-w-[80%]">
+                              <div className="flex items-start space-x-2">
+                                <Bot className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                                <p className="text-secondary-foreground text-sm break-words">
+                                  {idea.ai_response}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </ScrollArea>

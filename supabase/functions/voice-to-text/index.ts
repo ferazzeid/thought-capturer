@@ -79,6 +79,12 @@ serve(async (req) => {
       throw new Error('OpenAI API key not found. Please configure it in settings.')
     }
 
+    // Get default categories for auto-categorization
+    const { data: categories, error: categoriesError } = await supabase
+      .from('categories')
+      .select('id, name')
+      .eq('is_default', true)
+
     console.log('Processing audio with OpenAI...')
     
     // Process audio in chunks
@@ -110,8 +116,109 @@ serve(async (req) => {
     const result = await response.json()
     console.log('Transcription result:', result)
 
+    const transcriptText = result.text
+    
+    // Analyze the transcription for multiple ideas and categorization
+    console.log('Analyzing transcription for ideas and categories...')
+    
+    const categoryNames = categories ? categories.map(c => c.name).join(', ') : 'Business, Technology, Creative, Personal, Learning, Health & Fitness, Travel, Finance, Relationships, Other'
+    
+    const analysisPrompt = `Analyze this transcribed text and identify if it contains multiple separate ideas or concepts. Extract each distinct idea and categorize it.
+
+Text: "${transcriptText}"
+
+Available categories: ${categoryNames}
+
+Return a JSON response with this exact structure:
+{
+  "multiple_ideas": boolean,
+  "ideas": [
+    {
+      "content": "extracted idea text",
+      "category": "category_name",
+      "sequence": 1
+    }
+  ]
+}
+
+Guidelines:
+- If there's only one idea, set multiple_ideas to false and return one item
+- Extract each distinct, actionable idea separately
+- Choose the most appropriate category for each idea
+- Keep the original wording but clean up obvious speech-to-text errors
+- Number ideas in sequence if multiple exist`
+
+    const analysisResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${profile.api_key}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: 'You are a helpful assistant that analyzes transcribed voice recordings to extract and categorize ideas. Always respond with valid JSON.' },
+          { role: 'user', content: analysisPrompt }
+        ],
+        temperature: 0.3,
+        response_format: { type: "json_object" }
+      }),
+    })
+
+    if (!analysisResponse.ok) {
+      console.error('Analysis API error:', await analysisResponse.text())
+      // Fallback to simple response if analysis fails
+      return new Response(
+        JSON.stringify({ 
+          text: transcriptText,
+          ideas: [{
+            content: transcriptText,
+            category: null,
+            sequence: 1
+          }],
+          multiple_ideas: false
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    const analysisResult = await analysisResponse.json()
+    console.log('Analysis result:', analysisResult)
+
+    let parsedAnalysis
+    try {
+      parsedAnalysis = JSON.parse(analysisResult.choices[0].message.content)
+    } catch (e) {
+      console.error('Failed to parse analysis result:', e)
+      // Fallback to simple response
+      parsedAnalysis = {
+        multiple_ideas: false,
+        ideas: [{
+          content: transcriptText,
+          category: null,
+          sequence: 1
+        }]
+      }
+    }
+
+    // Map category names to IDs
+    const ideasWithCategoryIds = parsedAnalysis.ideas.map((idea: any) => {
+      const category = categories?.find(c => 
+        c.name.toLowerCase() === idea.category?.toLowerCase()
+      )
+      
+      return {
+        ...idea,
+        category_id: category?.id || null
+      }
+    })
+
     return new Response(
-      JSON.stringify({ text: result.text }),
+      JSON.stringify({ 
+        text: transcriptText,
+        ideas: ideasWithCategoryIds,
+        multiple_ideas: parsedAnalysis.multiple_ideas
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 

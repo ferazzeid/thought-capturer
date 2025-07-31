@@ -14,35 +14,82 @@ export type Database = {
   }
   public: {
     Tables: {
+      categories: {
+        Row: {
+          color: string | null
+          created_at: string
+          id: string
+          is_default: boolean | null
+          name: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          id?: string
+          is_default?: boolean | null
+          name: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          id?: string
+          is_default?: boolean | null
+          name?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       ideas: {
         Row: {
           ai_response: string | null
+          category_id: string | null
           content: string
           created_at: string
           id: string
+          idea_sequence: number | null
           original_audio_transcription: string | null
+          parent_recording_id: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
           ai_response?: string | null
+          category_id?: string | null
           content: string
           created_at?: string
           id?: string
+          idea_sequence?: number | null
           original_audio_transcription?: string | null
+          parent_recording_id?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
           ai_response?: string | null
+          category_id?: string | null
           content?: string
           created_at?: string
           id?: string
+          idea_sequence?: number | null
           original_audio_transcription?: string | null
+          parent_recording_id?: string | null
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "ideas_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
