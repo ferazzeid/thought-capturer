@@ -29,8 +29,16 @@ export function VoiceRecorder({ onSendMessage, isProcessing = false }: VoiceReco
       mediaRecorder.onstop = () => {
         const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
         setAudioBlob(audioBlob);
-        setHasRecording(true);
         stream.getTracks().forEach(track => track.stop());
+        
+        // Auto-send immediately without setting hasRecording state
+        const simulatedText = "Voice message recorded - OpenAI API integration needed";
+        onSendMessage(simulatedText);
+        
+        toast({
+          title: "Message sent",
+          description: "Your voice idea has been processed!",
+        });
       };
 
       mediaRecorder.start();
@@ -58,11 +66,6 @@ export function VoiceRecorder({ onSendMessage, isProcessing = false }: VoiceReco
         title: "Recording stopped",
         description: "Processing your voice message...",
       });
-      
-      // Auto-send after a short delay to allow audio processing
-      setTimeout(() => {
-        sendRecording();
-      }, 500);
     }
   };
 
