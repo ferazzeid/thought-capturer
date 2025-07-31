@@ -24,7 +24,7 @@ function AuthContent() {
   // Show loading state while auth is initializing
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-subtle p-4">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-background to-muted p-4">
         <Card className="w-full max-w-md shadow-medium">
           <CardContent className="flex items-center justify-center py-8">
             <div className="flex flex-col items-center space-y-4">
@@ -185,15 +185,15 @@ function AuthContent() {
 
   if (showForgotPassword) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-subtle p-4">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-background to-muted p-4">
         <Card className="w-full max-w-md shadow-medium">
           <CardHeader className="text-center">
             <div className="flex items-center justify-center mb-4">
-              <div className="bg-gradient-voice p-3 rounded-lg shadow-voice">
+            <div className="bg-gradient-to-br from-accent to-accent-glow p-3 rounded-lg shadow-voice">
                 <Mic className="h-6 w-6 text-accent-foreground" />
               </div>
             </div>
-            <CardTitle className="text-2xl font-bold bg-gradient-primary bg-clip-text text-transparent">
+          <CardTitle className="text-2xl font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
               Reset Password
             </CardTitle>
             <CardDescription>
@@ -237,15 +237,15 @@ function AuthContent() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-subtle p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-background to-muted p-4">
       <Card className="w-full max-w-md shadow-medium">
         <CardHeader className="text-center">
           <div className="flex items-center justify-center mb-4">
-            <div className="bg-gradient-voice p-3 rounded-lg shadow-voice">
+            <div className="bg-gradient-to-br from-accent to-accent-glow p-3 rounded-lg shadow-voice">
               <Mic className="h-6 w-6 text-accent-foreground" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold bg-gradient-primary bg-clip-text text-transparent">
+          <CardTitle className="text-2xl font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
             Voice Ideas
           </CardTitle>
           <CardDescription>
