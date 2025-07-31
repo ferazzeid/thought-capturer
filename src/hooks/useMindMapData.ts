@@ -3,6 +3,12 @@ import { Node, Edge } from '@xyflow/react';
 import { supabase } from '@/integrations/supabase/client';
 import { useSupabaseAuth } from '@/components/SupabaseAuthProvider';
 
+interface Position3D {
+  x: number;
+  y: number;
+  z?: number;
+}
+
 interface Idea {
   id: string;
   content: string;
@@ -17,9 +23,13 @@ interface Category {
   color: string;
 }
 
+interface ExtendedNode extends Omit<Node, 'position'> {
+  position: Position3D;
+}
+
 export function useMindMapData() {
   const { user } = useSupabaseAuth();
-  const [nodes, setNodes] = useState<Node[]>([]);
+  const [nodes, setNodes] = useState<ExtendedNode[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -51,12 +61,13 @@ export function useMindMapData() {
         const categories: Category[] = categoriesResult.data || [];
 
         // Create category nodes
-        const categoryNodes: Node[] = categories.map((category, index) => ({
+        const categoryNodes: ExtendedNode[] = categories.map((category, index) => ({
           id: `category-${category.id}`,
           type: 'category',
           position: {
             x: Math.cos((index * 2 * Math.PI) / categories.length) * 300,
             y: Math.sin((index * 2 * Math.PI) / categories.length) * 300,
+            z: Math.sin((index * 2 * Math.PI) / categories.length * 2) * 100, // Add 3D positioning
           },
           data: {
             id: category.id,
@@ -67,7 +78,7 @@ export function useMindMapData() {
         }));
 
         // Create idea nodes positioned around their categories
-        const ideaNodes: Node[] = [];
+        const ideaNodes: ExtendedNode[] = [];
         const categoryIdeasMap = new Map<string, Idea[]>();
         
         // Group ideas by category
@@ -82,7 +93,7 @@ export function useMindMapData() {
         // Position ideas around their categories
         categoryIdeasMap.forEach((categoryIdeas, categoryId) => {
           const categoryNode = categoryNodes.find(node => node.data.id === categoryId);
-          const categoryCenter = categoryNode ? categoryNode.position : { x: 0, y: 0 };
+          const categoryCenter: Position3D = categoryNode ? categoryNode.position : { x: 0, y: 0, z: 0 };
           
           categoryIdeas.forEach((idea, index) => {
             const angle = (index * 2 * Math.PI) / categoryIdeas.length;
@@ -94,6 +105,7 @@ export function useMindMapData() {
               position: {
                 x: categoryCenter.x + Math.cos(angle) * radius,
                 y: categoryCenter.y + Math.sin(angle) * radius,
+                z: (categoryCenter.z || 0) + Math.sin(angle + index) * 50, // Add 3D positioning
               },
               data: {
                 id: idea.id,
