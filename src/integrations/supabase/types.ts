@@ -54,6 +54,7 @@ export type Database = {
           idea_sequence: number | null
           original_audio_transcription: string | null
           parent_recording_id: string | null
+          tags: string[] | null
           updated_at: string
           user_id: string
         }
@@ -66,6 +67,7 @@ export type Database = {
           idea_sequence?: number | null
           original_audio_transcription?: string | null
           parent_recording_id?: string | null
+          tags?: string[] | null
           updated_at?: string
           user_id: string
         }
@@ -78,6 +80,7 @@ export type Database = {
           idea_sequence?: number | null
           original_audio_transcription?: string | null
           parent_recording_id?: string | null
+          tags?: string[] | null
           updated_at?: string
           user_id?: string
         }

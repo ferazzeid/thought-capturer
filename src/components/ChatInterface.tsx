@@ -81,7 +81,8 @@ export function ChatInterface({ apiKey }: ChatInterfaceProps) {
           original_audio_transcription: content,
           category_id: idea.category_id,
           parent_recording_id: parentRecordingId,
-          idea_sequence: idea.sequence || index + 1
+          idea_sequence: idea.sequence || index + 1,
+          tags: idea.tags || []
         }));
 
         const { error } = await supabase
@@ -103,7 +104,8 @@ export function ChatInterface({ apiKey }: ChatInterfaceProps) {
           .insert({
             user_id: user.id,
             content,
-            original_audio_transcription: content
+            original_audio_transcription: content,
+            tags: []
           });
 
         if (error) {

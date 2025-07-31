@@ -41,6 +41,7 @@ interface Idea {
   category_id: string | null;
   parent_recording_id: string | null;
   idea_sequence: number;
+  tags: string[];
 }
 
 const Ideas = () => {
@@ -52,6 +53,7 @@ const Ideas = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [ideaToDelete, setIdeaToDelete] = useState<Idea | null>(null);
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
+  const [selectedTagFilter, setSelectedTagFilter] = useState<string>('all');
   const { categories } = useCategories();
   const { toast } = useToast();
 
@@ -152,10 +154,27 @@ const Ideas = () => {
   };
 
   const filteredIdeas = ideas.filter(idea => {
-    if (selectedCategoryFilter === 'all') return true;
-    if (selectedCategoryFilter === 'uncategorized') return !idea.category_id;
-    return idea.category_id === selectedCategoryFilter;
+    const categoryMatch = selectedCategoryFilter === 'all' || 
+      (selectedCategoryFilter === 'uncategorized' && !idea.category_id) ||
+      idea.category_id === selectedCategoryFilter;
+    
+    const tagMatch = selectedTagFilter === 'all' || 
+      (idea.tags && idea.tags.includes(selectedTagFilter));
+    
+    return categoryMatch && tagMatch;
   });
+
+  const allTags = [...new Set(ideas.flatMap(idea => idea.tags || []))].sort();
+
+  const handleCategoryClick = (categoryId: string | null) => {
+    setSelectedCategoryFilter(categoryId || 'uncategorized');
+    setSelectedTagFilter('all');
+  };
+
+  const handleTagClick = (tag: string) => {
+    setSelectedTagFilter(tag);
+    setSelectedCategoryFilter('all');
+  };
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -194,27 +213,43 @@ const Ideas = () => {
                   <Lightbulb className="h-5 w-5 text-primary" />
                   <h2 className="text-lg font-semibold text-foreground">Your Ideas</h2>
                 </div>
-                <Select value={selectedCategoryFilter} onValueChange={setSelectedCategoryFilter}>
-                  <SelectTrigger className="w-32 h-8">
-                    <Filter className="h-3 w-3 mr-1" />
-                    <SelectValue placeholder="Filter" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All</SelectItem>
-                    <SelectItem value="uncategorized">No category</SelectItem>
-                    {categories.map((category) => (
-                      <SelectItem key={category.id} value={category.id}>
-                        <div className="flex items-center gap-2">
-                          <div 
-                            className="w-2 h-2 rounded-full" 
-                            style={{ backgroundColor: category.color }}
-                          />
-                          {category.name}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex gap-2">
+                  <Select value={selectedCategoryFilter} onValueChange={setSelectedCategoryFilter}>
+                    <SelectTrigger className="w-32 h-8">
+                      <Filter className="h-3 w-3 mr-1" />
+                      <SelectValue placeholder="Category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Categories</SelectItem>
+                      <SelectItem value="uncategorized">No category</SelectItem>
+                      {categories.map((category) => (
+                        <SelectItem key={category.id} value={category.id}>
+                          <div className="flex items-center gap-2">
+                            <div 
+                              className="w-2 h-2 rounded-full" 
+                              style={{ backgroundColor: category.color }}
+                            />
+                            {category.name}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  
+                  <Select value={selectedTagFilter} onValueChange={setSelectedTagFilter}>
+                    <SelectTrigger className="w-28 h-8">
+                      <SelectValue placeholder="Tags" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Tags</SelectItem>
+                      {allTags.map((tag) => (
+                        <SelectItem key={tag} value={tag}>
+                          #{tag}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <p className="text-sm text-muted-foreground mt-1">
                 {filteredIdeas.length} of {ideas.length} ideas
@@ -247,15 +282,26 @@ const Ideas = () => {
                                 <p className="text-foreground text-sm break-words">
                                   {idea.content}
                                 </p>
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 flex-wrap">
                                   {ideaCategory && (
                                     <Badge 
                                       variant="secondary" 
-                                      className="text-xs px-2 py-1 bg-blue-500 text-white hover:bg-blue-600 border-0"
+                                      className="text-xs px-2 py-1 bg-blue-500 text-white hover:bg-blue-600 border-0 cursor-pointer"
+                                      onClick={() => handleCategoryClick(ideaCategory.id)}
                                     >
                                       {ideaCategory.name}
                                     </Badge>
                                   )}
+                                  {idea.tags && idea.tags.map((tag) => (
+                                    <Badge 
+                                      key={tag}
+                                      variant="secondary" 
+                                      className="text-xs px-2 py-1 bg-gray-500 text-white hover:bg-gray-600 border-0 cursor-pointer"
+                                      onClick={() => handleTagClick(tag)}
+                                    >
+                                      #{tag}
+                                    </Badge>
+                                  ))}
                                   <CategoryPicker
                                     selectedCategoryId={idea.category_id}
                                     onCategorySelect={(categoryId) => updateIdeaCategory(idea.id, categoryId)}

@@ -123,7 +123,7 @@ serve(async (req) => {
     
     const categoryNames = categories ? categories.map(c => c.name).join(', ') : 'Business, Technology, Creative, Personal, Learning, Health & Fitness, Travel, Finance, Relationships, Other'
     
-    const analysisPrompt = `Analyze this transcribed text and identify if it contains multiple separate ideas or concepts. Extract each distinct idea and categorize it.
+    const analysisPrompt = `Analyze this transcribed text and identify if it contains multiple separate ideas or concepts. Extract each distinct idea, categorize it, and extract relevant tags.
 
 Text: "${transcriptText}"
 
@@ -136,7 +136,8 @@ Return a JSON response with this exact structure:
     {
       "content": "extracted idea text",
       "category": "category_name",
-      "sequence": 1
+      "sequence": 1,
+      "tags": ["tag1", "tag2"]
     }
   ]
 }
@@ -145,6 +146,9 @@ Guidelines:
 - If there's only one idea, set multiple_ideas to false and return one item
 - Extract each distinct, actionable idea separately
 - Choose the most appropriate category for each idea
+- Extract relevant tags from context (e.g., urgency: "urgent", "asap"; timing: "today", "tomorrow"; projects: "meeting", "call")
+- Tags should be lowercase, single words or short phrases
+- Maximum 3-5 tags per idea, focus on the most relevant ones
 - Keep the original wording but clean up obvious speech-to-text errors
 - Number ideas in sequence if multiple exist`
 
@@ -174,7 +178,8 @@ Guidelines:
           ideas: [{
             content: transcriptText,
             category: null,
-            sequence: 1
+            sequence: 1,
+            tags: []
           }],
           multiple_ideas: false
         }),
@@ -196,7 +201,8 @@ Guidelines:
         ideas: [{
           content: transcriptText,
           category: null,
-          sequence: 1
+          sequence: 1,
+          tags: []
         }]
       }
     }
