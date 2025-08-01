@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { MessageCircle, Lightbulb, Brain } from 'lucide-react';
+import { MessageCircle, Lightbulb } from 'lucide-react';
 
 export function Navigation() {
   const getLinkClass = ({ isActive }: { isActive: boolean }) =>
@@ -21,11 +21,6 @@ export function Navigation() {
           <NavLink to="/ideas" className={getLinkClass}>
             <Lightbulb className="h-4 w-4" />
             <span className="text-sm font-medium">Ideas</span>
-          </NavLink>
-          
-          <NavLink to="/mindmap" className={getLinkClass}>
-            <Brain className="h-4 w-4" />
-            <span className="text-sm font-medium">Mind Map</span>
           </NavLink>
         </div>
       </div>
