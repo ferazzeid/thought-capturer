@@ -123,11 +123,30 @@ serve(async (req) => {
     
     const categoryNames = categories ? categories.map(c => c.name).join(', ') : 'Business, Technology, Creative, Personal, Learning, Health & Fitness, Travel, Finance, Relationships, Other'
     
-    const analysisPrompt = `Analyze this transcribed text and identify if it contains multiple separate ideas or concepts. Extract each distinct idea, categorize it, and extract relevant tags.
+    // Check for similar ideas in recent recordings for cross-recording linking
+    const { data: recentIdeas } = await supabase
+      .from('ideas')
+      .select('id, content, ai_auto_tags, master_idea_id')
+      .eq('user_id', user.id)
+      .gte('created_at', new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()) // Last 48 hours
+      .order('created_at', { ascending: false })
+      .limit(20)
+
+    const recentIdeasContext = recentIdeas?.length ? 
+      `\n\nRecent ideas for potential linking:\n${recentIdeas.map(idea => 
+        `- "${idea.content}" (tags: ${idea.ai_auto_tags?.join(', ') || 'none'})`
+      ).join('\n')}` : ''
+
+    const analysisPrompt = `Analyze this transcribed text using intelligent idea organization. Your task is to:
+1. Identify main ideas vs sub-components vs follow-up ideas
+2. Determine semantic relationships with recent ideas
+3. Set confidence levels for uncertain groupings
+4. Extract relevant auto-tags for semantic linking
 
 Text: "${transcriptText}"
 
 Available categories: ${categoryNames}
+${recentIdeasContext}
 
 Return a JSON response with this exact structure:
 {
@@ -135,22 +154,31 @@ Return a JSON response with this exact structure:
   "ideas": [
     {
       "content": "extracted idea text",
+      "idea_type": "main|sub-component|follow-up",
       "category": "category_name",
       "sequence": 1,
-      "tags": ["tag1", "tag2"]
+      "tags": ["user-facing-tag1", "user-facing-tag2"],
+      "ai_auto_tags": ["semantic-tag1", "semantic-tag2", "entity-name"],
+      "confidence_level": 0.95,
+      "potential_master_idea": "content of related recent idea if this should be linked",
+      "needs_clarification": false,
+      "clarification_question": "Should this be part of your X project?"
     }
   ]
 }
 
-Guidelines:
-- If there's only one idea, set multiple_ideas to false and return one item
-- Extract each distinct, actionable idea separately
-- Choose the most appropriate category for each idea
-- Extract relevant tags from context (e.g., urgency: "urgent", "asap"; timing: "today", "tomorrow"; projects: "meeting", "call")
-- Tags should be lowercase, single words or short phrases
-- Maximum 3-5 tags per idea, focus on the most relevant ones
-- Keep the original wording but clean up obvious speech-to-text errors
-- Number ideas in sequence if multiple exist`
+CRITICAL Guidelines:
+- main: Core standalone concepts that deserve their own entry
+- sub-component: Details, features, or requirements of a main idea (use when ideas are clearly related)
+- follow-up: Completely separate ideas mentioned in same recording
+- confidence_level: 0.0-1.0 (set below 0.7 for uncertain groupings)
+- needs_clarification: true only when confidence < 0.7 AND linking to existing ideas
+- ai_auto_tags: semantic tags for automatic linking (entities, projects, concepts)
+- tags: user-facing tags (urgency, timing, action items)
+- potential_master_idea: exact content match from recent ideas if this should be linked
+- If 80%+ semantic similarity with recent idea, suggest linking with needs_clarification
+- Number ideas in sequence, prioritize main ideas first
+- Keep original wording but clean up speech-to-text errors`
 
     const analysisResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -177,9 +205,13 @@ Guidelines:
           text: transcriptText,
           ideas: [{
             content: transcriptText,
+            idea_type: 'main',
             category: null,
             sequence: 1,
-            tags: []
+            tags: [],
+            ai_auto_tags: [],
+            confidence_level: 1.0,
+            needs_clarification: false
           }],
           multiple_ideas: false
         }),

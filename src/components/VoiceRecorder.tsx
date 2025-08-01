@@ -3,6 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Mic, MicOff, Send, Square, Brain } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { audioFeedback } from '@/utils/audioFeedback';
+import { ClarificationDialog } from './ClarificationDialog';
 
 interface VoiceRecorderProps {
   onSendMessage: (message: string, voiceAnalysis?: any) => void;
@@ -14,8 +16,65 @@ export function VoiceRecorder({ onSendMessage, isProcessing = false }: VoiceReco
   const [hasRecording, setHasRecording] = useState(false);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [clarificationItems, setClarificationItems] = useState<any[]>([]);
+  const [pendingIdeas, setPendingIdeas] = useState<any[]>([]);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const { toast } = useToast();
+
+  const handleAnalysisResult = async (data: any) => {
+    const ideas = data.ideas || [];
+    
+    // Check for clarifications needed
+    const needsClarification = ideas.filter((idea: any) => idea.needs_clarification);
+    
+    if (needsClarification.length > 0) {
+      // Play clarification sound
+      await audioFeedback.playClarificationNeeded();
+      
+      // Set up clarification items
+      const clarificationItems = needsClarification.map((idea: any) => ({
+        id: idea.sequence?.toString() || Math.random().toString(),
+        question: idea.clarification_question || "Should this be linked to an existing idea?",
+        ideaContent: idea.content,
+        onAnswer: (answer: boolean) => {
+          // Handle linking logic here - would need to update the backend
+          console.log(`Clarification answer for "${idea.content}": ${answer}`);
+        }
+      }));
+      
+      setClarificationItems(clarificationItems);
+      setPendingIdeas(ideas);
+    } else {
+      // No clarifications needed, play success sounds immediately
+      await audioFeedback.playMultipleIdeasSequence(ideas);
+      
+      const ideaCount = ideas.length || 1;
+      const isMultiple = data.multiple_ideas && ideaCount > 1;
+      
+      toast({
+        title: "Ideas saved successfully!",
+        description: isMultiple 
+          ? `Found ${ideaCount} ideas in your recording!`
+          : "Your voice idea has been processed!",
+      });
+    }
+  };
+
+  const handleClarificationComplete = async () => {
+    setClarificationItems([]);
+    
+    // Play success sounds for all pending ideas
+    if (pendingIdeas.length > 0) {
+      await audioFeedback.playMultipleIdeasSequence(pendingIdeas);
+      
+      toast({
+        title: "Ideas saved successfully!",
+        description: `All ${pendingIdeas.length} ideas have been processed!`,
+      });
+      
+      setPendingIdeas([]);
+    }
+  };
 
   const startRecording = async () => {
     try {
@@ -60,17 +119,8 @@ export function VoiceRecorder({ onSendMessage, isProcessing = false }: VoiceReco
                 });
               } else {
                 console.log('Transcription received:', data);
+                await handleAnalysisResult(data);
                 onSendMessage(data.text || "Voice message processed", data);
-                
-                const ideaCount = data.ideas?.length || 1;
-                const isMultiple = data.multiple_ideas && ideaCount > 1;
-                
-                toast({
-                  title: "Ideas saved successfully!",
-                  description: isMultiple 
-                    ? `Found ${ideaCount} ideas in your recording!`
-                    : "Your voice idea has been processed!",
-                });
               }
             } finally {
               setIsAnalyzing(false);
@@ -174,58 +224,68 @@ export function VoiceRecorder({ onSendMessage, isProcessing = false }: VoiceReco
   };
 
   return (
-    <div className="flex flex-col items-center space-y-4">
-      <Button
-        onClick={handleMainButtonClick}
-        variant={getButtonVariant()}
-        size="voice"
-        disabled={isProcessing || isAnalyzing}
-        className="relative"
-      >
-        {getButtonIcon()}
-        {isRecording && (
-          <div className="absolute inset-0 rounded-full bg-recording/20 animate-ping" />
-        )}
-        {isAnalyzing && (
-          <div className="absolute inset-0 rounded-full bg-primary/20 animate-pulse" />
-        )}
-      </Button>
-      
-      <div className="text-center">
-        {isRecording && (
-          <p className="text-sm text-muted-foreground animate-pulse">
-            Recording... Tap to stop
-          </p>
-        )}
-        {isAnalyzing && (
-          <div className="flex items-center justify-center space-x-2">
-            <Brain className="h-4 w-4 text-primary animate-pulse" />
+    <>
+      <div className="flex flex-col items-center space-y-4">
+        <Button
+          onClick={handleMainButtonClick}
+          variant={getButtonVariant()}
+          size="voice"
+          disabled={isProcessing || isAnalyzing}
+          className="relative"
+        >
+          {getButtonIcon()}
+          {isRecording && (
+            <div className="absolute inset-0 rounded-full bg-recording/20 animate-ping" />
+          )}
+          {isAnalyzing && (
+            <div className="absolute inset-0 rounded-full bg-primary/20 animate-pulse" />
+          )}
+        </Button>
+        
+        <div className="text-center">
+          {isRecording && (
             <p className="text-sm text-muted-foreground animate-pulse">
-              Analyzing your ideas...
+              Recording... Tap to stop
             </p>
-          </div>
-        )}
-        {hasRecording && !isAnalyzing && (
-          <div className="space-y-2">
+          )}
+          {isAnalyzing && (
+            <div className="flex items-center justify-center space-x-2">
+              <Brain className="h-4 w-4 text-primary animate-pulse" />
+              <p className="text-sm text-muted-foreground animate-pulse">
+                Analyzing your ideas...
+              </p>
+            </div>
+          )}
+          {hasRecording && !isAnalyzing && (
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">
+                Ready to analyze your voice message
+              </p>
+              <Button
+                onClick={cancelRecording}
+                variant="ghost"
+                size="sm"
+                className="text-xs"
+              >
+                Cancel & Record Again
+              </Button>
+            </div>
+          )}
+          {!isRecording && !hasRecording && !isAnalyzing && (
             <p className="text-sm text-muted-foreground">
-              Ready to analyze your voice message
+              Tap to record your idea
             </p>
-            <Button
-              onClick={cancelRecording}
-              variant="ghost"
-              size="sm"
-              className="text-xs"
-            >
-              Cancel & Record Again
-            </Button>
-          </div>
-        )}
-        {!isRecording && !hasRecording && !isAnalyzing && (
-          <p className="text-sm text-muted-foreground">
-            Tap to record your idea
-          </p>
-        )}
+          )}
+        </div>
       </div>
-    </div>
+
+      {/* Clarification Dialog */}
+      {clarificationItems.length > 0 && (
+        <ClarificationDialog
+          items={clarificationItems}
+          onComplete={handleClarificationComplete}
+        />
+      )}
+    </>
   );
 }
