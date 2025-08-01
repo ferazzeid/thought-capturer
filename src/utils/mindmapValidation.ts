@@ -10,7 +10,7 @@ export function validateNode(node: any): node is MindMapNode {
     typeof node.position.x === 'number' &&
     typeof node.position.y === 'number' &&
     node.data &&
-    typeof node.data.label === 'string'
+    (typeof node.data.label === 'string' || typeof node.data.content === 'string')
   );
 }
 
@@ -37,8 +37,8 @@ export function sanitizeNode(node: any): SafeNode | null {
       z: node.position.z || 0,
     },
     data: {
-      label: node.data.label || 'Untitled',
-      content: node.data.content || '',
+      label: node.data.label || (node.data.content ? node.data.content.substring(0, 50) + (node.data.content.length > 50 ? '...' : '') : 'Untitled'),
+      content: node.data.content || node.data.label || '',
       tags: Array.isArray(node.data.tags) ? node.data.tags : [],
       color: node.data.color || '#8b5cf6',
     },

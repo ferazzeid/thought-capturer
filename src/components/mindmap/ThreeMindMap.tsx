@@ -74,8 +74,8 @@ export function ThreeMindMap({ nodes, edges, searchTerm, filteredNodes }: ThreeM
               <Idea3DNode 
                 node={node}
                 highlighted={searchTerm ? (
-                  node.data.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                  node.data.tags?.some((tag: string) => tag.toLowerCase().includes(searchTerm.toLowerCase()))
+                  (node.data.content?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
+                  (node.data.tags?.some((tag: string) => tag.toLowerCase().includes(searchTerm.toLowerCase())) || false)
                 ) : false}
               />
             </ErrorBoundary3D>
