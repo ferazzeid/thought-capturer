@@ -33,7 +33,7 @@ export function IdeaCard({ idea, onDelete }: IdeaCardProps) {
       </Button>
 
       {/* Idea content - left aligned */}
-      <div className="bg-blue-50 rounded-lg p-3 pr-10 relative">
+      <div className="bg-muted/30 rounded-lg p-3 pr-10 relative">
         {/* Category color indicator */}
         {idea.category && (
           <div 
@@ -42,20 +42,20 @@ export function IdeaCard({ idea, onDelete }: IdeaCardProps) {
           />
         )}
         
-        <p className="text-sm text-gray-800 leading-relaxed">{idea.content}</p>
+        <p className="text-sm text-foreground leading-relaxed">{idea.content}</p>
         
         {/* AI response */}
         {idea.ai_response && (
-          <div className="mt-3 pt-3 border-t border-blue-100">
-            <p className="text-xs text-gray-600 leading-relaxed">{idea.ai_response}</p>
+          <div className="mt-3 pt-3 border-t border-muted">
+            <p className="text-xs text-muted-foreground leading-relaxed">{idea.ai_response}</p>
           </div>
         )}
         
-        {/* Minimal metadata - left aligned */}
+        {/* Tags in bottom right corner */}
         {idea.tags && idea.tags.length > 0 && (
-          <div className="mt-2">
-            <div className="text-xs text-gray-400">
-              {idea.tags.slice(0, 2).join(', ')}
+          <div className="absolute bottom-2 right-8">
+            <div className="text-xs text-muted-foreground/60">
+              #{idea.tags.slice(0, 2).join(' #')}
               {idea.tags.length > 2 && ` +${idea.tags.length - 2}`}
             </div>
           </div>

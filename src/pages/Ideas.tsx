@@ -7,6 +7,7 @@ import { Navigation } from '@/components/Navigation';
 import { Settings } from '@/components/Settings';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { IdeaCard } from '@/components/IdeaCard';
 import { useProfile } from '@/hooks/useProfile';
@@ -29,13 +30,13 @@ interface Idea {
   };
 }
 
-const TIME_PERIODS: { value: TimeFilter; label: string }[] = [
+const TIME_PERIODS: { value: TimeFilter; label: string; tooltip?: string }[] = [
   { value: 'today', label: 'Today' },
   { value: 'yesterday', label: 'Yesterday' },
-  { value: 'this-week', label: 'TW' },
-  { value: 'last-week', label: 'LW' },
-  { value: 'this-month', label: 'TM' },
-  { value: 'last-month', label: 'LM' },
+  { value: 'this-week', label: 'This Week' },
+  { value: 'last-week', label: 'LW', tooltip: 'Last Week' },
+  { value: 'this-month', label: 'TM', tooltip: 'This Month' },
+  { value: 'last-month', label: 'LM', tooltip: 'Last Month' },
 ];
 
 export default function Ideas() {
@@ -172,19 +173,39 @@ export default function Ideas() {
         <div className="p-4">
           {/* Simple time filter buttons - single line */}
           <div className="mb-4">
-            <div className="flex gap-1 overflow-x-auto">
-              {TIME_PERIODS.map((period) => (
-                <Button
-                  key={period.value}
-                  variant={timeFilter === period.value ? "default" : "secondary"}
-                  size="sm"
-                  onClick={() => toggleTimeFilter(period.value)}
-                  className="text-xs px-3 py-1 h-8 flex-shrink-0"
-                >
-                  {period.label}
-                </Button>
-              ))}
-            </div>
+            <TooltipProvider>
+              <div className="flex gap-1 overflow-x-auto">
+                {TIME_PERIODS.map((period) => (
+                  period.tooltip ? (
+                    <Tooltip key={period.value}>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant={timeFilter === period.value ? "default" : "secondary"}
+                          size="sm"
+                          onClick={() => toggleTimeFilter(period.value)}
+                          className="text-xs px-3 py-1 h-8 flex-shrink-0"
+                        >
+                          {period.label}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>{period.tooltip}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    <Button
+                      key={period.value}
+                      variant={timeFilter === period.value ? "default" : "secondary"}
+                      size="sm"
+                      onClick={() => toggleTimeFilter(period.value)}
+                      className="text-xs px-3 py-1 h-8 flex-shrink-0"
+                    >
+                      {period.label}
+                    </Button>
+                  )
+                ))}
+              </div>
+            </TooltipProvider>
           </div>
 
           {/* Ideas list */}
