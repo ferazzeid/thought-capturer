@@ -189,70 +189,69 @@ serve(async (req) => {
 
     const transcriptText = result.text
     
-    // Background task for embedding and analysis
-    const backgroundAnalysis = async () => {
-      try {
-        console.log('Starting background analysis...')
-        
-        // Generate embedding for semantic similarity search
-        console.log('Generating embedding for semantic search...')
-        const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${profile.api_key}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'text-embedding-ada-002',
-            input: transcriptText,
-          }),
-        })
+    // Perform synchronous analysis for complete results
+    try {
+      console.log('Starting synchronous analysis...')
+      
+      // Generate embedding for semantic similarity search
+      console.log('Generating embedding for semantic search...')
+      const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${profile.api_key}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'text-embedding-ada-002',
+          input: transcriptText,
+        }),
+      })
 
-        let queryEmbedding = null
-        let similarIdeas = []
-        
-        if (embeddingResponse.ok) {
-          const embeddingResult = await embeddingResponse.json()
-          queryEmbedding = embeddingResult.data[0].embedding
+      let queryEmbedding = null
+      let similarIdeas = []
+      
+      if (embeddingResponse.ok) {
+        const embeddingResult = await embeddingResponse.json()
+        queryEmbedding = embeddingResult.data[0].embedding
 
-          // Find similar ideas using vector search
-          const { data: foundSimilarIdeas, error: similarError } = await supabase
-            .rpc('find_similar_ideas', {
-              query_embedding: queryEmbedding,
-              similarity_threshold: 0.75,
-              match_count: 5
-            })
+        // Find similar ideas using vector search
+        const { data: foundSimilarIdeas, error: similarError } = await supabase
+          .rpc('find_similar_ideas', {
+            query_embedding: queryEmbedding,
+            similarity_threshold: 0.75,
+            match_count: 5
+          })
 
-          if (!similarError && foundSimilarIdeas) {
-            similarIdeas = foundSimilarIdeas
-          }
+        if (!similarError && foundSimilarIdeas) {
+          similarIdeas = foundSimilarIdeas
         }
-        
-        // Analyze the transcription for multiple ideas and categorization
-        console.log('Analyzing transcription for ideas and categories...')
-        
-        const categoryNames = categories ? categories.map(c => c.name).join(', ') : 'Business, Technology, Creative, Personal, Learning, Health & Fitness, Travel, Finance, Relationships, Other'
-        
-        // Check for similar ideas in recent recordings for cross-recording linking
-        const { data: recentIdeas } = await supabase
-          .from('ideas')
-          .select('id, content, ai_auto_tags, master_idea_id')
-          .eq('user_id', user.id)
-          .gte('created_at', new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()) // Last 48 hours
-          .order('created_at', { ascending: false })
-          .limit(20)
+      }
+      
+      // Analyze the transcription for multiple ideas and categorization
+      console.log('Analyzing transcription for ideas and categories...')
+      
+      const categoryNames = categories ? categories.map(c => c.name).join(', ') : 'Business, Technology, Creative, Personal, Learning, Health & Fitness, Travel, Finance, Relationships, Other'
+      
+      // Check for similar ideas in recent recordings for cross-recording linking
+      const { data: recentIdeas } = await supabase
+        .from('ideas')
+        .select('id, content, ai_auto_tags, master_idea_id')
+        .eq('user_id', user.id)
+        .gte('created_at', new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()) // Last 48 hours
+        .order('created_at', { ascending: false })
+        .limit(20)
 
-        const recentIdeasContext = recentIdeas?.length ? 
-          `\n\nRecent ideas for potential linking:\n${recentIdeas.map(idea => 
-            `- "${idea.content}" (tags: ${idea.ai_auto_tags?.join(', ') || 'none'})`
-          ).join('\n')}` : ''
+      const recentIdeasContext = recentIdeas?.length ? 
+        `\n\nRecent ideas for potential linking:\n${recentIdeas.map(idea => 
+          `- "${idea.content}" (tags: ${idea.ai_auto_tags?.join(', ') || 'none'})`
+        ).join('\n')}` : ''
 
-        const similarIdeasContext = similarIdeas?.length ?
-          `\n\nSemantically similar ideas (based on meaning):\n${similarIdeas.map((idea: any) =>
-            `- "${idea.content}" (${(idea.similarity * 100).toFixed(1)}% similar, type: ${idea.idea_type})`
-          ).join('\n')}` : ''
+      const similarIdeasContext = similarIdeas?.length ?
+        `\n\nSemantically similar ideas (based on meaning):\n${similarIdeas.map((idea: any) =>
+          `- "${idea.content}" (${(idea.similarity * 100).toFixed(1)}% similar, type: ${idea.idea_type})`
+        ).join('\n')}` : ''
 
-        const analysisPrompt = `Analyze this transcribed text using intelligent idea organization and semantic understanding. Your task is to:
+      const analysisPrompt = `Analyze this transcribed text using intelligent idea organization and semantic understanding. Your task is to:
 1. Identify main ideas vs sub-components vs follow-up ideas
 2. Determine semantic relationships with recent and similar ideas
 3. Set confidence levels for uncertain groupings
@@ -299,43 +298,52 @@ CRITICAL Guidelines:
 - Keep original wording but clean up speech-to-text errors
 - Include embedding for future semantic searches`
 
-        const analysisResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${profile.api_key}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'gpt-4.1-2025-04-14',
-            messages: [
-              { role: 'system', content: 'You are a helpful assistant that analyzes transcribed voice recordings to extract and categorize ideas using semantic understanding. Always respond with valid JSON.' },
-              { role: 'user', content: analysisPrompt }
-            ],
-            temperature: 0.3,
-            response_format: { type: "json_object" }
-          }),
-        })
+      const analysisResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${profile.api_key}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4.1-2025-04-14',
+          messages: [
+            { role: 'system', content: 'You are a helpful assistant that analyzes transcribed voice recordings to extract and categorize ideas using semantic understanding. Always respond with valid JSON.' },
+            { role: 'user', content: analysisPrompt }
+          ],
+          temperature: 0.3,
+          response_format: { type: "json_object" }
+        }),
+      })
 
-        if (analysisResponse.ok) {
-          const analysisResult = await analysisResponse.json()
-          console.log('Background analysis completed:', analysisResult)
-          
-          // You could store the enhanced analysis results in a database here
-          // or trigger a webhook to notify the client
-        } else {
-          console.error('Analysis API error:', await analysisResponse.text())
-        }
+      if (analysisResponse.ok) {
+        const analysisResult = await analysisResponse.json()
+        console.log('Synchronous analysis completed:', analysisResult)
         
-      } catch (error) {
-        console.error('Background analysis error:', error)
+        // Parse the JSON content from the GPT response
+        const analysisData = JSON.parse(analysisResult.choices[0].message.content)
+        
+        // Return complete analysis results immediately
+        return new Response(
+          JSON.stringify({ 
+            text: transcriptText,
+            ideas: analysisData.ideas || [],
+            multiple_ideas: analysisData.multiple_ideas || false,
+            similar_ideas: analysisData.similar_ideas || similarIdeas
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      } else {
+        console.error('Analysis API error:', await analysisResponse.text())
+        // Fall back to basic response if analysis fails
       }
+      
+    } catch (error) {
+      console.error('Synchronous analysis error:', error)
+      // Fall back to basic response if analysis fails
     }
 
-    // Start background task without waiting
-    EdgeRuntime.waitUntil(backgroundAnalysis())
-
-    // Return immediate response with transcription and basic idea
-    const immediateIdea = {
+    // Fallback response if analysis fails
+    const fallbackIdea = {
       content: transcriptText,
       idea_type: 'main',
       category: null,
@@ -350,7 +358,7 @@ CRITICAL Guidelines:
     return new Response(
       JSON.stringify({ 
         text: transcriptText,
-        ideas: [immediateIdea],
+        ideas: [fallbackIdea],
         multiple_ideas: false,
         similar_ideas: []
       }),

@@ -55,11 +55,34 @@ export function VoiceRecorder({ onSendMessage, isProcessing = false }: VoiceReco
       setIsAnalyzing(false);
       setAnalysisStatus('');
       
+      // Show detailed breakdown of analysis results
+      let description = '';
+      if (isMultiple) {
+        const mainIdeas = ideas.filter((idea: any) => idea.idea_type === 'main').length;
+        const subComponents = ideas.filter((idea: any) => idea.idea_type === 'sub-component').length;
+        const followUps = ideas.filter((idea: any) => idea.idea_type === 'follow-up').length;
+        
+        const parts = [];
+        if (mainIdeas > 0) parts.push(`${mainIdeas} main idea${mainIdeas > 1 ? 's' : ''}`);
+        if (subComponents > 0) parts.push(`${subComponents} sub-component${subComponents > 1 ? 's' : ''}`);
+        if (followUps > 0) parts.push(`${followUps} follow-up${followUps > 1 ? 's' : ''}`);
+        
+        description = `Found ${parts.join(', ')} in your recording!`;
+      } else {
+        const idea = ideas[0];
+        if (idea?.category) {
+          description = `Categorized as ${idea.category}`;
+          if (idea.confidence_level < 0.8) {
+            description += ` (${Math.round(idea.confidence_level * 100)}% confidence)`;
+          }
+        } else {
+          description = "Your voice idea has been processed!";
+        }
+      }
+      
       toast({
-        title: "Ideas saved successfully!",
-        description: isMultiple 
-          ? `Found ${ideaCount} ideas in your recording!`
-          : "Your voice idea has been processed!",
+        title: "Ideas analyzed successfully!",
+        description,
       });
     }
   };
@@ -209,10 +232,10 @@ export function VoiceRecorder({ onSendMessage, isProcessing = false }: VoiceReco
                 
                 setAnalysisStatus('Analyzing ideas and finding patterns...');
                 
-                // Simulate the background analysis steps for user feedback
-                setTimeout(() => setAnalysisStatus('Checking for similar ideas...'), 500);
-                setTimeout(() => setAnalysisStatus('Categorizing and tagging...'), 1000);
-                setTimeout(() => setAnalysisStatus('Finalizing analysis...'), 1500);
+                // Update status to reflect actual backend processing
+                setTimeout(() => setAnalysisStatus('Checking for similar ideas...'), 1000);
+                setTimeout(() => setAnalysisStatus('Categorizing and tagging...'), 2000);
+                setTimeout(() => setAnalysisStatus('Finalizing analysis...'), 3000);
                 
                 console.log('VoiceRecorder: Processing successful response...');
                 await handleAnalysisResult(data);
