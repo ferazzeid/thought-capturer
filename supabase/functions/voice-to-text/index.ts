@@ -169,7 +169,7 @@ serve(async (req) => {
 
     console.log('Sending to OpenAI Whisper API...')
 
-    // Send to OpenAI
+    // Send to OpenAI for transcription (quick response)
     const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
       headers: {
@@ -189,69 +189,70 @@ serve(async (req) => {
 
     const transcriptText = result.text
     
-    // Generate embedding for semantic similarity search
-    console.log('Generating embedding for semantic search...')
-    const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${profile.api_key}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'text-embedding-ada-002',
-        input: transcriptText,
-      }),
-    })
-
-    if (!embeddingResponse.ok) {
-      console.error('Embedding API error:', await embeddingResponse.text())
-    }
-
-    let queryEmbedding = null
-    let similarIdeas = []
-    
-    if (embeddingResponse.ok) {
-      const embeddingResult = await embeddingResponse.json()
-      queryEmbedding = embeddingResult.data[0].embedding
-
-      // Find similar ideas using vector search
-      const { data: foundSimilarIdeas, error: similarError } = await supabase
-        .rpc('find_similar_ideas', {
-          query_embedding: queryEmbedding,
-          similarity_threshold: 0.75,
-          match_count: 5
+    // Background task for embedding and analysis
+    const backgroundAnalysis = async () => {
+      try {
+        console.log('Starting background analysis...')
+        
+        // Generate embedding for semantic similarity search
+        console.log('Generating embedding for semantic search...')
+        const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${profile.api_key}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'text-embedding-ada-002',
+            input: transcriptText,
+          }),
         })
 
-      if (!similarError && foundSimilarIdeas) {
-        similarIdeas = foundSimilarIdeas
-      }
-    }
-    
-    // Analyze the transcription for multiple ideas and categorization
-    console.log('Analyzing transcription for ideas and categories...')
-    
-    const categoryNames = categories ? categories.map(c => c.name).join(', ') : 'Business, Technology, Creative, Personal, Learning, Health & Fitness, Travel, Finance, Relationships, Other'
-    
-    // Check for similar ideas in recent recordings for cross-recording linking
-    const { data: recentIdeas } = await supabase
-      .from('ideas')
-      .select('id, content, ai_auto_tags, master_idea_id')
-      .eq('user_id', user.id)
-      .gte('created_at', new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()) // Last 48 hours
-      .order('created_at', { ascending: false })
-      .limit(20)
+        let queryEmbedding = null
+        let similarIdeas = []
+        
+        if (embeddingResponse.ok) {
+          const embeddingResult = await embeddingResponse.json()
+          queryEmbedding = embeddingResult.data[0].embedding
 
-    const recentIdeasContext = recentIdeas?.length ? 
-      `\n\nRecent ideas for potential linking:\n${recentIdeas.map(idea => 
-        `- "${idea.content}" (tags: ${idea.ai_auto_tags?.join(', ') || 'none'})`
-      ).join('\n')}` : ''
+          // Find similar ideas using vector search
+          const { data: foundSimilarIdeas, error: similarError } = await supabase
+            .rpc('find_similar_ideas', {
+              query_embedding: queryEmbedding,
+              similarity_threshold: 0.75,
+              match_count: 5
+            })
 
-    const similarIdeasContext = similarIdeas?.length ?
-      `\n\nSemantically similar ideas (based on meaning):\n${similarIdeas.map((idea: any) =>
-        `- "${idea.content}" (${(idea.similarity * 100).toFixed(1)}% similar, type: ${idea.idea_type})`
-      ).join('\n')}` : ''
+          if (!similarError && foundSimilarIdeas) {
+            similarIdeas = foundSimilarIdeas
+          }
+        }
+        
+        // Analyze the transcription for multiple ideas and categorization
+        console.log('Analyzing transcription for ideas and categories...')
+        
+        const categoryNames = categories ? categories.map(c => c.name).join(', ') : 'Business, Technology, Creative, Personal, Learning, Health & Fitness, Travel, Finance, Relationships, Other'
+        
+        // Check for similar ideas in recent recordings for cross-recording linking
+        const { data: recentIdeas } = await supabase
+          .from('ideas')
+          .select('id, content, ai_auto_tags, master_idea_id')
+          .eq('user_id', user.id)
+          .gte('created_at', new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()) // Last 48 hours
+          .order('created_at', { ascending: false })
+          .limit(20)
 
-    const analysisPrompt = `Analyze this transcribed text using intelligent idea organization and semantic understanding. Your task is to:
+        const recentIdeasContext = recentIdeas?.length ? 
+          `\n\nRecent ideas for potential linking:\n${recentIdeas.map(idea => 
+            `- "${idea.content}" (tags: ${idea.ai_auto_tags?.join(', ') || 'none'})`
+          ).join('\n')}` : ''
+
+        const similarIdeasContext = similarIdeas?.length ?
+          `\n\nSemantically similar ideas (based on meaning):\n${similarIdeas.map((idea: any) =>
+            `- "${idea.content}" (${(idea.similarity * 100).toFixed(1)}% similar, type: ${idea.idea_type})`
+          ).join('\n')}` : ''
+
+        const analysisPrompt = `Analyze this transcribed text using intelligent idea organization and semantic understanding. Your task is to:
 1. Identify main ideas vs sub-components vs follow-up ideas
 2. Determine semantic relationships with recent and similar ideas
 3. Set confidence levels for uncertain groupings
@@ -298,87 +299,60 @@ CRITICAL Guidelines:
 - Keep original wording but clean up speech-to-text errors
 - Include embedding for future semantic searches`
 
-    const analysisResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${profile.api_key}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: 'You are a helpful assistant that analyzes transcribed voice recordings to extract and categorize ideas using semantic understanding. Always respond with valid JSON.' },
-          { role: 'user', content: analysisPrompt }
-        ],
-        temperature: 0.3,
-        response_format: { type: "json_object" }
-      }),
-    })
+        const analysisResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${profile.api_key}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'gpt-4.1-2025-04-14',
+            messages: [
+              { role: 'system', content: 'You are a helpful assistant that analyzes transcribed voice recordings to extract and categorize ideas using semantic understanding. Always respond with valid JSON.' },
+              { role: 'user', content: analysisPrompt }
+            ],
+            temperature: 0.3,
+            response_format: { type: "json_object" }
+          }),
+        })
 
-    if (!analysisResponse.ok) {
-      console.error('Analysis API error:', await analysisResponse.text())
-      // Fallback to simple response if analysis fails
-      return new Response(
-        JSON.stringify({ 
-          text: transcriptText,
-          ideas: [{
-            content: transcriptText,
-            idea_type: 'main',
-            category: null,
-            sequence: 1,
-            tags: [],
-            ai_auto_tags: [],
-            confidence_level: 1.0,
-            needs_clarification: false,
-            embedding: queryEmbedding
-          }],
-          multiple_ideas: false,
-          similar_ideas: similarIdeas
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    const analysisResult = await analysisResponse.json()
-    console.log('Analysis result:', analysisResult)
-
-    let parsedAnalysis
-    try {
-      parsedAnalysis = JSON.parse(analysisResult.choices[0].message.content)
-    } catch (e) {
-      console.error('Failed to parse analysis result:', e)
-      // Fallback to simple response
-      parsedAnalysis = {
-        multiple_ideas: false,
-        ideas: [{
-          content: transcriptText,
-          category: null,
-          sequence: 1,
-          tags: [],
-          embedding: queryEmbedding
-        }],
-        similar_ideas: similarIdeas
+        if (analysisResponse.ok) {
+          const analysisResult = await analysisResponse.json()
+          console.log('Background analysis completed:', analysisResult)
+          
+          // You could store the enhanced analysis results in a database here
+          // or trigger a webhook to notify the client
+        } else {
+          console.error('Analysis API error:', await analysisResponse.text())
+        }
+        
+      } catch (error) {
+        console.error('Background analysis error:', error)
       }
     }
 
-    // Map category names to IDs
-    const ideasWithCategoryIds = parsedAnalysis.ideas.map((idea: any) => {
-      const category = categories?.find(c => 
-        c.name.toLowerCase() === idea.category?.toLowerCase()
-      )
-      
-      return {
-        ...idea,
-        category_id: category?.id || null
-      }
-    })
+    // Start background task without waiting
+    EdgeRuntime.waitUntil(backgroundAnalysis())
+
+    // Return immediate response with transcription and basic idea
+    const immediateIdea = {
+      content: transcriptText,
+      idea_type: 'main',
+      category: null,
+      sequence: 1,
+      tags: [],
+      ai_auto_tags: [],
+      confidence_level: 1.0,
+      needs_clarification: false,
+      embedding: null
+    }
 
     return new Response(
       JSON.stringify({ 
         text: transcriptText,
-        ideas: ideasWithCategoryIds,
-        multiple_ideas: parsedAnalysis.multiple_ideas,
-        similar_ideas: parsedAnalysis.similar_ideas || similarIdeas
+        ideas: [immediateIdea],
+        multiple_ideas: false,
+        similar_ideas: []
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
@@ -393,4 +367,5 @@ CRITICAL Guidelines:
       }
     )
   }
+}
 })
