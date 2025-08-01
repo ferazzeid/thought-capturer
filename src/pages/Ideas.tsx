@@ -1,63 +1,56 @@
-import { useState, useEffect } from 'react';
-import { Navigate } from 'react-router-dom';
-import { useSupabaseAuth } from '@/components/SupabaseAuthProvider';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { Card } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Header } from '@/components/Header';
-import { Settings } from '@/components/Settings';
-import { Navigation } from '@/components/Navigation';
-import { useProfile } from '@/hooks/useProfile';
-import { Bot, Lightbulb, Trash2, Filter } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Badge } from '@/components/ui/badge';
+import { Header } from '@/components/Header';
+import { Navigation } from '@/components/Navigation';
+import { Settings } from '@/components/Settings';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { CategoryPicker } from '@/components/CategoryPicker';
+import { IdeaCard } from '@/components/IdeaCard';
 import { useCategories } from '@/hooks/useCategories';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { useProfile } from '@/hooks/useProfile';
+import { Filter, X, Hash, Calendar } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { cn } from '@/lib/utils';
+import { TimeFilter, TIME_FILTER_OPTIONS, getTimeFilterPredicate } from '@/utils/timeFilters';
+import { useSupabaseAuth } from '@/components/SupabaseAuthProvider';
 
 interface Idea {
   id: string;
   content: string;
-  original_audio_transcription: string | null;
-  ai_response: string | null;
+  ai_response?: string;
   created_at: string;
-  category_id: string | null;
-  parent_recording_id: string | null;
-  idea_sequence: number;
-  tags: string[];
+  updated_at: string;
+  category_id?: string;
+  tags?: string[];
+  category?: {
+    id: string;
+    name: string;
+    color: string;
+  };
 }
 
-const Ideas = () => {
+export default function Ideas() {
   const { user, isLoading } = useSupabaseAuth();
   const { profile } = useProfile();
-  const [showSettings, setShowSettings] = useState(false);
+  const { categories, isLoading: categoriesLoading } = useCategories();
+  const { toast } = useToast();
+  const navigate = useNavigate();
+
   const [ideas, setIdeas] = useState<Idea[]>([]);
   const [isLoadingIdeas, setIsLoadingIdeas] = useState(true);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>('all');
+  const [showSettings, setShowSettings] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [ideaToDelete, setIdeaToDelete] = useState<Idea | null>(null);
-  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
-  const [selectedTagFilter, setSelectedTagFilter] = useState<string>('all');
-  const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
-  const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
-  const { categories } = useCategories();
-  const { toast } = useToast();
+  const [ideaToDelete, setIdeaToDelete] = useState<string | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -70,7 +63,14 @@ const Ideas = () => {
       setIsLoadingIdeas(true);
       const { data, error } = await supabase
         .from('ideas')
-        .select('*')
+        .select(`
+          *,
+          categories (
+            id,
+            name,
+            color
+          )
+        `)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -81,7 +81,15 @@ const Ideas = () => {
           variant: "destructive"
         });
       } else {
-        setIdeas(data || []);
+        const ideasWithCategories = data?.map(idea => ({
+          ...idea,
+          category: idea.categories ? {
+            id: idea.categories.id,
+            name: idea.categories.name,
+            color: idea.categories.color
+          } : undefined
+        })) || [];
+        setIdeas(ideasWithCategories);
       }
     } catch (error) {
       console.error('Error fetching ideas:', error);
@@ -90,8 +98,8 @@ const Ideas = () => {
     }
   };
 
-  const handleDeleteClick = (idea: Idea) => {
-    setIdeaToDelete(idea);
+  const handleDeleteClick = (id: string) => {
+    setIdeaToDelete(id);
     setDeleteDialogOpen(true);
   };
 
@@ -102,7 +110,7 @@ const Ideas = () => {
       const { error } = await supabase
         .from('ideas')
         .delete()
-        .eq('id', ideaToDelete.id);
+        .eq('id', ideaToDelete);
 
       if (error) {
         console.error('Error deleting idea:', error);
@@ -112,7 +120,7 @@ const Ideas = () => {
           variant: "destructive"
         });
       } else {
-        setIdeas(ideas.filter(idea => idea.id !== ideaToDelete.id));
+        setIdeas(ideas.filter(idea => idea.id !== ideaToDelete));
         toast({
           title: "Idea deleted",
           description: "Your idea has been removed.",
@@ -155,54 +163,48 @@ const Ideas = () => {
     }
   };
 
+  // Filter ideas based on selected categories, tags, and time
   const filteredIdeas = ideas.filter(idea => {
-    // If no filters are active, show all ideas
-    if (selectedCategories.size === 0 && selectedTags.size === 0) {
-      return true;
+    // Time filter
+    const timeFilterPredicate = getTimeFilterPredicate(timeFilter);
+    if (!timeFilterPredicate(new Date(idea.created_at))) {
+      return false;
     }
     
-    // Check category match
-    const categoryMatch = selectedCategories.size === 0 || 
-      (selectedCategories.has('uncategorized') && !idea.category_id) ||
-      (idea.category_id && selectedCategories.has(idea.category_id));
+    // Category filter
+    if (selectedCategories.length > 0) {
+      if (!idea.category || !selectedCategories.includes(idea.category.id)) {
+        return false;
+      }
+    }
     
-    // Check tag match
-    const tagMatch = selectedTags.size === 0 || 
-      (idea.tags && idea.tags.some(tag => selectedTags.has(tag)));
+    // Tag filter
+    if (selectedTags.length > 0) {
+      if (!idea.tags || !selectedTags.some(tag => idea.tags.includes(tag))) {
+        return false;
+      }
+    }
     
-    return categoryMatch && tagMatch;
+    return true;
   });
 
+  // Get all unique tags from ideas
   const allTags = [...new Set(ideas.flatMap(idea => idea.tags || []))].sort();
 
-  const toggleCategoryFilter = (categoryId: string | null) => {
-    const key = categoryId || 'uncategorized';
-    setSelectedCategories(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(key)) {
-        newSet.delete(key);
-      } else {
-        newSet.add(key);
-      }
-      return newSet;
-    });
+  const toggleCategoryFilter = (categoryId: string) => {
+    setSelectedCategories(prev => 
+      prev.includes(categoryId) 
+        ? prev.filter(id => id !== categoryId)
+        : [...prev, categoryId]
+    );
   };
 
   const toggleTagFilter = (tag: string) => {
-    setSelectedTags(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(tag)) {
-        newSet.delete(tag);
-      } else {
-        newSet.add(tag);
-      }
-      return newSet;
-    });
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    setSelectedTags(prev => 
+      prev.includes(tag) 
+        ? prev.filter(t => t !== tag)
+        : [...prev, tag]
+    );
   };
 
   if (isLoading) {
@@ -217,174 +219,153 @@ const Ideas = () => {
   }
 
   if (!user) {
-    return <Navigate to="/auth" replace />;
+    navigate('/auth');
+    return null;
   }
 
   return (
     <div className="min-h-screen bg-gradient-subtle">
-      <Header 
-        onOpenSettings={() => setShowSettings(true)}
-        hasApiKey={!!profile?.api_key}
-      />
-      <Navigation />
-      
-      <main className="pb-safe">
-        <div className="flex flex-col h-full max-w-md mx-auto bg-gradient-subtle">
-          <Card className="flex-1 m-4 mb-2 shadow-soft">
-            <div className="p-4 border-b border-border">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Lightbulb className="h-5 w-5 text-primary" />
-                  <h2 className="text-lg font-semibold text-foreground">Your Ideas</h2>
-                </div>
-                <div className="flex gap-2">
-                  <Select value={selectedCategoryFilter} onValueChange={setSelectedCategoryFilter}>
-                    <SelectTrigger className="w-32 h-8">
-                      <Filter className="h-3 w-3 mr-1" />
-                      <SelectValue placeholder="Category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Categories</SelectItem>
-                      <SelectItem value="uncategorized">No category</SelectItem>
+      <div className="max-w-md mx-auto">
+        <Header 
+          onOpenSettings={() => setShowSettings(true)}
+          hasApiKey={!!profile?.api_key}
+        />
+        <Navigation />
+        
+        <Card className="m-4 shadow-soft">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between mb-3">
+              <CardTitle className="text-lg font-semibold">Your Ideas</CardTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setFiltersOpen(!filtersOpen)}
+                className="flex items-center gap-2"
+              >
+                <Filter className="h-4 w-4" />
+                Filters
+                {(selectedCategories.length > 0 || selectedTags.length > 0 || timeFilter !== 'all') && (
+                  <span className="bg-primary text-primary-foreground rounded-full text-xs w-5 h-5 flex items-center justify-center">
+                    {selectedCategories.length + selectedTags.length + (timeFilter !== 'all' ? 1 : 0)}
+                  </span>
+                )}
+              </Button>
+            </div>
+            
+            {/* Time Filter - Always visible */}
+            <div className="mb-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Calendar className="h-4 w-4" />
+                <span className="text-sm font-medium">Time Period</span>
+              </div>
+              <Select value={timeFilter} onValueChange={(value: TimeFilter) => setTimeFilter(value)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select time period" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TIME_FILTER_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
+              <CollapsibleContent className="space-y-4 pt-4 border-t">
+                {/* Category Filters */}
+                {categories.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium">Categories</h4>
+                    <div className="flex flex-wrap gap-2">
                       {categories.map((category) => (
-                        <SelectItem key={category.id} value={category.id}>
-                          <div className="flex items-center gap-2">
-                            <div 
-                              className="w-2 h-2 rounded-full" 
+                        <div key={category.id} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`category-${category.id}`}
+                            checked={selectedCategories.includes(category.id)}
+                            onCheckedChange={(checked) => toggleCategoryFilter(category.id)}
+                          />
+                          <label 
+                            htmlFor={`category-${category.id}`}
+                            className="text-sm cursor-pointer flex items-center gap-1"
+                          >
+                            <span 
+                              className="w-3 h-3 rounded-full" 
                               style={{ backgroundColor: category.color }}
                             />
                             {category.name}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  
-                  <Select value={selectedTagFilter} onValueChange={setSelectedTagFilter}>
-                    <SelectTrigger className="w-28 h-8">
-                      <SelectValue placeholder="Tags" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Tags</SelectItem>
-                      {allTags.map((tag) => (
-                        <SelectItem key={tag} value={tag}>
-                          #{tag}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <p className="text-sm text-muted-foreground mt-1">
-                {filteredIdeas.length} of {ideas.length} ideas
-              </p>
-            </div>
-            
-            <ScrollArea className="h-[60vh]">
-              {isLoadingIdeas ? (
-                <div className="flex items-center justify-center h-32">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                </div>
-              ) : ideas.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-32 text-center p-4">
-                  <Lightbulb className="h-8 w-8 text-muted-foreground mb-2" />
-                  <p className="text-muted-foreground">No ideas saved yet</p>
-                  <p className="text-sm text-muted-foreground">Start recording to capture your thoughts!</p>
-                </div>
-              ) : (
-                <div className="space-y-3 p-4">
-                  {filteredIdeas.map((idea) => {
-                    const ideaCategory = categories.find(cat => cat.id === idea.category_id);
-                    
-                    return (
-                      <div key={idea.id} className="space-y-3">
-                        {/* User Idea */}
-                        <div className="flex justify-start">
-                          <div className="bg-background border border-border rounded-lg p-4 w-full relative group">
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1 space-y-2">
-                                <p className="text-foreground text-sm break-words">
-                                  {idea.content}
-                                </p>
-                                <div className="flex items-center gap-2 flex-wrap">
-                                   {ideaCategory && (
-                                     <Badge 
-                                       variant="secondary" 
-                                       className={`text-xs px-2 py-1 border-0 cursor-pointer transition-colors ${
-                                         selectedCategories.has(ideaCategory.id) 
-                                           ? 'bg-blue-700 text-white hover:bg-blue-800' 
-                                           : 'bg-blue-500 text-white hover:bg-blue-600'
-                                       }`}
-                                       onClick={() => toggleCategoryFilter(ideaCategory.id)}
-                                     >
-                                       {ideaCategory.name}
-                                     </Badge>
-                                   )}
-                                   {idea.tags && idea.tags.map((tag) => (
-                                     <Badge 
-                                       key={tag}
-                                       variant="secondary" 
-                                       className={`text-xs px-2 py-1 border-0 cursor-pointer transition-colors ${
-                                         selectedTags.has(tag) 
-                                           ? 'bg-gray-700 text-white hover:bg-gray-800' 
-                                           : 'bg-gray-500 text-white hover:bg-gray-600'
-                                       }`}
-                                       onClick={() => toggleTagFilter(tag)}
-                                     >
-                                       #{tag}
-                                     </Badge>
-                                   ))}
-                                  <CategoryPicker
-                                    selectedCategoryId={idea.category_id}
-                                    onCategorySelect={(categoryId) => updateIdeaCategory(idea.id, categoryId)}
-                                    trigger={
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-6 px-2 text-xs text-muted-foreground hover:bg-secondary opacity-0 group-hover:opacity-100 transition-opacity"
-                                      >
-                                        {!ideaCategory && (
-                                          <span className="text-xs">+ Category</span>
-                                        )}
-                                      </Button>
-                                    }
-                                  />
-                                </div>
-                              </div>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDeleteClick(idea)}
-                                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 h-auto hover:bg-secondary"
-                              >
-                                <Trash2 className="h-3 w-3 text-muted-foreground" />
-                              </Button>
-                            </div>
-                          </div>
+                          </label>
                         </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
-                        {/* AI Response */}
-                        {idea.ai_response && (
-                          <div className="flex justify-start ml-6">
-                            <div className="bg-secondary rounded-lg p-3 max-w-[80%]">
-                              <div className="flex items-start space-x-2">
-                                <Bot className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
-                                <p className="text-secondary-foreground text-sm break-words">
-                                  {idea.ai_response}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </ScrollArea>
-          </Card>
-        </div>
-      </main>
+                {/* Tag Filters */}
+                {allTags.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium">Tags</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {allTags.map((tag) => (
+                        <div key={tag} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`tag-${tag}`}
+                            checked={selectedTags.includes(tag)}
+                            onCheckedChange={(checked) => toggleTagFilter(tag)}
+                          />
+                          <label 
+                            htmlFor={`tag-${tag}`}
+                            className="text-sm cursor-pointer"
+                          >
+                            {tag}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Clear Filters */}
+                {(selectedCategories.length > 0 || selectedTags.length > 0) && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedCategories([]);
+                      setSelectedTags([]);
+                    }}
+                    className="flex items-center gap-2"
+                  >
+                    <X className="h-4 w-4" />
+                    Clear filters
+                  </Button>
+                )}
+              </CollapsibleContent>
+            </Collapsible>
+          </CardHeader>
+
+          <CardContent className="space-y-4">
+            {isLoadingIdeas ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              </div>
+            ) : filteredIdeas.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>No ideas found matching your filters.</p>
+              </div>
+            ) : (
+              filteredIdeas.map((idea) => (
+                <IdeaCard 
+                  key={idea.id} 
+                  idea={idea} 
+                  onDelete={handleDeleteClick}
+                />
+              ))
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       {showSettings && (
         <Settings onClose={() => setShowSettings(false)} />
@@ -396,11 +377,6 @@ const Ideas = () => {
             <AlertDialogTitle>Delete Idea</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete this idea? This action cannot be undone.
-              {ideaToDelete && (
-                <div className="mt-2 p-2 bg-muted rounded text-sm">
-                  "{ideaToDelete.content.substring(0, 100)}{ideaToDelete.content.length > 100 ? '...' : ''}"
-                </div>
-              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -413,6 +389,4 @@ const Ideas = () => {
       </AlertDialog>
     </div>
   );
-};
-
-export default Ideas;
+}
