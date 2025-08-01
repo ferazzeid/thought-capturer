@@ -1,9 +1,6 @@
-import { MessageBubble } from '@/components/MessageBubble';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Trash2, Bot, Hash, Calendar, Folder } from 'lucide-react';
-import { getRelativeTimeLabel } from '@/utils/timeFilters';
+import { Trash2, Bot } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface Idea {
   id: string;
@@ -23,104 +20,50 @@ interface IdeaCardProps {
 }
 
 export function IdeaCard({ idea, onDelete }: IdeaCardProps) {
-  const userMessage = {
-    id: idea.id,
-    content: idea.content,
-    sender: 'user' as const,
-    timestamp: new Date(idea.created_at)
-  };
-
-  const aiMessage = idea.ai_response ? {
-    id: `${idea.id}-ai`,
-    content: idea.ai_response,
-    sender: 'assistant' as const,
-    timestamp: new Date(idea.created_at)
-  } : null;
-
-  const createdDate = new Date(idea.created_at);
-  const relativeTime = getRelativeTimeLabel(createdDate);
-  const exactDateTime = createdDate.toLocaleString();
-
   return (
-    <div className="space-y-4 p-4 border rounded-lg bg-card hover:bg-card/50 transition-colors relative group">
+    <div className="relative group mb-2">
       {/* Delete button */}
       <Button
         variant="ghost"
         size="sm"
         onClick={() => onDelete(idea.id)}
-        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 p-0 hover:bg-destructive/20 hover:text-destructive"
+        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0 hover:bg-destructive/20 hover:text-destructive z-10"
       >
         <Trash2 className="h-3 w-3" />
       </Button>
 
-      {/* Main content */}
-      <div className="pr-10">
-        <MessageBubble message={userMessage} />
-        
-        {aiMessage && (
-          <div className="mt-3">
-            <MessageBubble message={aiMessage} icon={<Bot className="h-4 w-4" />} />
-          </div>
-        )}
+      {/* User idea bubble */}
+      <div className="flex justify-end mb-2">
+        <div className="max-w-[85%] bg-gradient-primary text-primary-foreground rounded-lg p-3 shadow-sm">
+          <p className="text-sm leading-relaxed">{idea.content}</p>
+        </div>
       </div>
 
-      {/* Compact metadata footer */}
-      <div className="flex items-center justify-between pt-2 border-t border-border/50">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="flex items-center gap-1 hover:text-foreground transition-colors cursor-default">
-                  <Calendar className="h-3 w-3" />
-                  <span>{relativeTime}</span>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{exactDateTime}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-
-          {idea.category && (
-            <div className="flex items-center gap-1">
-              <Folder className="h-3 w-3" />
-              <span className="px-1.5 py-0.5 rounded text-xs" style={{ backgroundColor: `${idea.category.color}20`, color: idea.category.color }}>
-                {idea.category.name}
-              </span>
-            </div>
-          )}
-        </div>
-
-        {idea.tags && idea.tags.length > 0 && (
-          <div className="flex items-center gap-1">
-            <Hash className="h-3 w-3 text-muted-foreground" />
-            <div className="flex gap-1">
-              {idea.tags.slice(0, 3).map((tag, index) => (
-                <Badge key={index} variant="outline" className="text-xs px-1.5 py-0 h-5 text-muted-foreground border-muted-foreground/30">
-                  {tag}
-                </Badge>
-              ))}
-              {idea.tags.length > 3 && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Badge variant="outline" className="text-xs px-1.5 py-0 h-5 text-muted-foreground border-muted-foreground/30 cursor-default">
-                        +{idea.tags.length - 3}
-                      </Badge>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <div className="flex flex-wrap gap-1 max-w-48">
-                        {idea.tags.slice(3).map((tag, index) => (
-                          <span key={index} className="text-xs">{tag}</span>
-                        ))}
-                      </div>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
+      {/* AI response bubble */}
+      {idea.ai_response && (
+        <div className="flex justify-start mb-2">
+          <div className="max-w-[85%] bg-card text-card-foreground border rounded-lg p-3 shadow-sm">
+            <div className="flex items-start space-x-2">
+              <Bot className="h-4 w-4 mt-0.5 text-muted-foreground flex-shrink-0" />
+              <p className="text-sm leading-relaxed">{idea.ai_response}</p>
             </div>
           </div>
-        )}
+        </div>
+      )}
+
+      {/* Minimal metadata in bottom right */}
+      <div className="flex justify-end">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          {idea.category && (
+            <span className="text-xs opacity-60">{idea.category.name}</span>
+          )}
+          {idea.tags && idea.tags.length > 0 && (
+            <span className="text-xs opacity-60">
+              {idea.tags.slice(0, 2).join(', ')}
+              {idea.tags.length > 2 && ' +' + (idea.tags.length - 2)}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
