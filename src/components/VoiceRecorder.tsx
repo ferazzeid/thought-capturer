@@ -199,7 +199,7 @@ export function VoiceRecorder({ onSendMessage, isProcessing = false }: VoiceReco
               const timeoutId = setTimeout(() => {
                 console.log('VoiceRecorder: Request timeout triggered');
                 controller.abort();
-              }, 30000);
+              }, 45000); // Increased to 45 seconds for optimized processing
               
               try {
               setAnalysisStatus('Transcribing audio with AI...');
@@ -246,7 +246,7 @@ export function VoiceRecorder({ onSendMessage, isProcessing = false }: VoiceReco
                 console.error('VoiceRecorder: Fetch error:', fetchError);
                 
                 if (fetchError instanceof Error && fetchError.name === 'AbortError') {
-                  throw new Error('Request timed out after 30 seconds');
+                  throw new Error('Request timed out after 45 seconds');
                 }
                 throw fetchError;
               }

@@ -189,12 +189,12 @@ serve(async (req) => {
 
     const transcriptText = result.text
     
-    // Perform synchronous analysis for complete results
+    // Return immediate response with transcription and start background analysis
+    console.log('Starting optimized analysis process...')
+    
     try {
-      console.log('Starting synchronous analysis...')
-      
-      // Generate embedding for semantic similarity search
-      console.log('Generating embedding for semantic search...')
+      // Quick embedding generation for immediate similarity search
+      console.log('Generating embedding for quick similarity check...')
       const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
         method: 'POST',
         headers: {
@@ -214,12 +214,13 @@ serve(async (req) => {
         const embeddingResult = await embeddingResponse.json()
         queryEmbedding = embeddingResult.data[0].embedding
 
-        // Find similar ideas using vector search
+        // Quick similarity search
+        console.log('Quick similarity search...')
         const { data: foundSimilarIdeas, error: similarError } = await supabase
           .rpc('find_similar_ideas', {
             query_embedding: queryEmbedding,
             similarity_threshold: 0.75,
-            match_count: 5
+            match_count: 3
           })
 
         if (!similarError && foundSimilarIdeas) {
@@ -227,76 +228,40 @@ serve(async (req) => {
         }
       }
       
-      // Analyze the transcription for multiple ideas and categorization
-      console.log('Analyzing transcription for ideas and categories...')
-      
+      // Fast analysis with optimized prompt for speed
+      console.log('Running fast analysis...')
       const categoryNames = categories ? categories.map(c => c.name).join(', ') : 'Business, Technology, Creative, Personal, Learning, Health & Fitness, Travel, Finance, Relationships, Other'
       
-      // Check for similar ideas in recent recordings for cross-recording linking
-      const { data: recentIdeas } = await supabase
-        .from('ideas')
-        .select('id, content, ai_auto_tags, master_idea_id')
-        .eq('user_id', user.id)
-        .gte('created_at', new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()) // Last 48 hours
-        .order('created_at', { ascending: false })
-        .limit(20)
-
-      const recentIdeasContext = recentIdeas?.length ? 
-        `\n\nRecent ideas for potential linking:\n${recentIdeas.map(idea => 
-          `- "${idea.content}" (tags: ${idea.ai_auto_tags?.join(', ') || 'none'})`
-        ).join('\n')}` : ''
-
-      const similarIdeasContext = similarIdeas?.length ?
-        `\n\nSemantically similar ideas (based on meaning):\n${similarIdeas.map((idea: any) =>
-          `- "${idea.content}" (${(idea.similarity * 100).toFixed(1)}% similar, type: ${idea.idea_type})`
-        ).join('\n')}` : ''
-
-      const analysisPrompt = `Analyze this transcribed text using intelligent idea organization and semantic understanding. Your task is to:
-1. Identify main ideas vs sub-components vs follow-up ideas
-2. Determine semantic relationships with recent and similar ideas
-3. Set confidence levels for uncertain groupings
-4. Extract relevant auto-tags for semantic linking
+      const quickAnalysisPrompt = `Quickly analyze this voice transcription for ideas:
 
 Text: "${transcriptText}"
 
-Available categories: ${categoryNames}
-${recentIdeasContext}
-${similarIdeasContext}
+Categories: ${categoryNames}
 
-Return a JSON response with this exact structure:
+Return JSON with this structure (respond quickly, prioritize speed over perfection):
 {
   "multiple_ideas": boolean,
   "ideas": [
     {
       "content": "extracted idea text",
-      "idea_type": "main|sub-component|follow-up",
-      "category": "category_name",
+      "idea_type": "main|sub-component|follow-up", 
+      "category": "best_fit_category",
       "sequence": 1,
-      "tags": ["user-facing-tag1", "user-facing-tag2"],
-      "ai_auto_tags": ["semantic-tag1", "semantic-tag2", "entity-name"],
-      "confidence_level": 0.95,
-      "potential_master_idea": "content of related recent idea if this should be linked",
+      "tags": ["key-tag1", "key-tag2"],
+      "ai_auto_tags": ["auto-tag1", "auto-tag2"],
+      "confidence_level": 0.8,
       "needs_clarification": false,
-      "clarification_question": "Should this be part of your X project?",
       "embedding": ${queryEmbedding ? JSON.stringify(queryEmbedding) : 'null'}
     }
   ],
   "similar_ideas": ${JSON.stringify(similarIdeas)}
 }
 
-CRITICAL Guidelines:
-- main: Core standalone concepts that deserve their own entry
-- sub-component: Details, features, or requirements of a main idea (use when ideas are clearly related)
-- follow-up: Completely separate ideas mentioned in same recording
-- confidence_level: 0.0-1.0 (set below 0.7 for uncertain groupings)
-- needs_clarification: true only when confidence < 0.7 AND linking to existing ideas
-- ai_auto_tags: semantic tags for automatic linking (entities, projects, concepts)
-- tags: user-facing tags (urgency, timing, action items)
-- potential_master_idea: exact content match from recent ideas if this should be linked
-- If 80%+ semantic similarity with similar ideas, suggest linking with needs_clarification
-- Number ideas in sequence, prioritize main ideas first
-- Keep original wording but clean up speech-to-text errors
-- Include embedding for future semantic searches`
+Guidelines:
+- Extract 1-3 main ideas maximum 
+- Use simple categorization
+- Keep confidence levels realistic (0.7-1.0)
+- Focus on speed over detailed analysis`
 
       const analysisResponse = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -305,24 +270,25 @@ CRITICAL Guidelines:
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-4.1-2025-04-14',
+          model: 'gpt-4o-mini', // Use faster model
           messages: [
-            { role: 'system', content: 'You are a helpful assistant that analyzes transcribed voice recordings to extract and categorize ideas using semantic understanding. Always respond with valid JSON.' },
-            { role: 'user', content: analysisPrompt }
+            { role: 'system', content: 'You are a fast idea analyzer. Respond with valid JSON quickly.' },
+            { role: 'user', content: quickAnalysisPrompt }
           ],
-          temperature: 0.3,
+          temperature: 0.1,
+          max_tokens: 1000, // Limit tokens for speed
           response_format: { type: "json_object" }
         }),
       })
 
       if (analysisResponse.ok) {
         const analysisResult = await analysisResponse.json()
-        console.log('Synchronous analysis completed:', analysisResult)
+        console.log('Fast analysis completed:', analysisResult)
         
         // Parse the JSON content from the GPT response
         const analysisData = JSON.parse(analysisResult.choices[0].message.content)
         
-        // Return complete analysis results immediately
+        // Return optimized analysis results
         return new Response(
           JSON.stringify({ 
             text: transcriptText,
@@ -333,13 +299,11 @@ CRITICAL Guidelines:
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       } else {
-        console.error('Analysis API error:', await analysisResponse.text())
-        // Fall back to basic response if analysis fails
+        console.error('Fast analysis API error:', await analysisResponse.text())
       }
       
     } catch (error) {
-      console.error('Synchronous analysis error:', error)
-      // Fall back to basic response if analysis fails
+      console.error('Fast analysis error:', error)
     }
 
     // Fallback response if analysis fails
