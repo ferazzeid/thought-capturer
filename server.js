@@ -13,8 +13,25 @@ const PORT = process.env.PORT || 3000;
 // Enable CORS
 app.use(cors());
 
-// Parse JSON bodies
-app.use(express.json());
+// Parse JSON bodies with increased limit for audio data
+app.use(express.json({ limit: '50mb' }));
+app.use(express.raw({ limit: '50mb', type: 'application/octet-stream' }));
+
+// Add request size logging and error handling
+app.use((err, req, res, next) => {
+  if (err.type === 'entity.too.large') {
+    console.error('Request too large:', {
+      path: req.path,
+      contentLength: req.get('content-length'),
+      limit: '50mb'
+    });
+    return res.status(413).json({ 
+      error: 'Request too large', 
+      message: 'Audio file exceeds 50MB limit' 
+    });
+  }
+  next(err);
+});
 
 // Serve static files from dist directory (built React app)
 app.use(express.static(join(__dirname, 'dist')));
