@@ -232,35 +232,48 @@ serve(async (req) => {
       console.log('Running fast analysis...')
       const categoryNames = categories ? categories.map(c => c.name).join(', ') : 'Business, Technology, Creative, Personal, Learning, Health & Fitness, Travel, Finance, Relationships, Other'
       
-      const quickAnalysisPrompt = `Analyze this transcription for ideas quickly: "${transcriptText}"
+      const quickAnalysisPrompt = `Analyze this transcription and extract ALL distinct, actionable ideas: "${transcriptText}"
 
 Similar ideas found: ${JSON.stringify(similarIdeas.slice(0, 2))}
 
 CRITICAL: Return ONLY valid JSON. No other text. Use this exact format:
 
 {
-  "multiple_ideas": false,
+  "multiple_ideas": true,
   "ideas": [
     {
-      "content": "main idea extracted from transcription",
+      "content": "specific actionable idea 1",
       "idea_type": "main",
       "category": "Technology",
       "sequence": 1,
-      "tags": ["ui", "design"],
-      "ai_auto_tags": ["interface", "buttons"],
+      "tags": ["relevant", "tags"],
+      "ai_auto_tags": ["auto-generated", "tags"],
       "confidence_level": 0.9,
+      "needs_clarification": false
+    },
+    {
+      "content": "specific actionable idea 2",
+      "idea_type": "sub-component",
+      "category": "Business",
+      "sequence": 2,
+      "tags": ["more", "tags"],
+      "ai_auto_tags": ["feature", "implementation"],
+      "confidence_level": 0.8,
       "needs_clarification": false
     }
   ]
 }
 
-Rules:
-- Extract 1-2 main ideas maximum to avoid truncation
-- Use categories: Business, Technology, Creative, Personal, General
-- Keep all text fields short and concise
-- Confidence: 0.7-1.0 only
-- No embedding field needed
-- Ensure valid JSON syntax`
+EXTRACTION RULES:
+- Break down complex recordings into multiple distinct, actionable ideas
+- Each idea should be a specific task, feature, or concept
+- For example: "go to store, test app, record features" = 3 separate ideas
+- Extract 2-5 ideas when multiple concepts are mentioned
+- Use idea_type: "main" for primary concepts, "sub-component" for details
+- Categories: Business, Technology, Creative, Personal, Learning, Health, Travel, Finance, General
+- Generate relevant tags based on context
+- Confidence: 0.7-1.0 based on clarity
+- Set multiple_ideas: true when extracting 2+ ideas`
 
       const analysisResponse = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -275,7 +288,7 @@ Rules:
             { role: 'user', content: quickAnalysisPrompt }
           ],
           temperature: 0.1,
-          max_tokens: 1000, // Limit tokens for speed
+          max_tokens: 1500, // Allow more tokens for multiple ideas
           response_format: { type: "json_object" }
         }),
       })
