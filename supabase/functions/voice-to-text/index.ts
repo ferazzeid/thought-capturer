@@ -367,5 +367,4 @@ CRITICAL Guidelines:
       }
     )
   }
-}
 })
