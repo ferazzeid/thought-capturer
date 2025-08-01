@@ -77,139 +77,229 @@ export function VoiceRecorder({ onSendMessage, isProcessing = false }: VoiceReco
   };
 
   const startRecording = async () => {
+    console.log('VoiceRecorder: Starting recording...');
+    
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          sampleRate: 44100
+        } 
+      });
       
-      // Use WebM format consistently for better compatibility
-      const options = { mimeType: 'audio/webm' };
-      const mediaRecorder = new MediaRecorder(stream, options);
+      console.log('VoiceRecorder: Got media stream');
+      
+      // Create MediaRecorder with better codec support
+      const options = { mimeType: 'audio/webm;codecs=opus' };
+      let mediaRecorder;
+      
+      if (MediaRecorder.isTypeSupported(options.mimeType)) {
+        mediaRecorder = new MediaRecorder(stream, options);
+        console.log('VoiceRecorder: Using opus codec');
+      } else {
+        console.warn('VoiceRecorder: Opus codec not supported, using default');
+        mediaRecorder = new MediaRecorder(stream);
+      }
+      
       mediaRecorderRef.current = mediaRecorder;
+      const audioChunks: BlobPart[] = [];
 
-      const audioChunks: Blob[] = [];
       mediaRecorder.ondataavailable = (event) => {
-        audioChunks.push(event.data);
+        if (event.data.size > 0) {
+          audioChunks.push(event.data);
+          console.log('VoiceRecorder: Audio chunk received, size:', event.data.size);
+        }
       };
 
       mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-        setAudioBlob(audioBlob);
-        stream.getTracks().forEach(track => track.stop());
+        console.log('VoiceRecorder: Recording stopped, processing audio...');
         
         try {
+          const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+          console.log('VoiceRecorder: Audio blob created, size:', audioBlob.size);
+          
+          if (audioBlob.size === 0) {
+            throw new Error('Audio recording is empty');
+          }
+
+          setAudioBlob(audioBlob);
           setIsAnalyzing(true);
           
-          // Convert audio blob to base64
+          // Convert to base64
           const reader = new FileReader();
           reader.onloadend = async () => {
-            const base64Audio = reader.result as string;
-            const base64Data = base64Audio.split(',')[1]; // Remove data:audio/webm;base64, prefix
-            
-            console.log('Sending audio to voice-to-text function...');
-            console.log('Audio data length:', base64Data?.length || 0);
-            
-            // Validate audio data before sending
-            if (!base64Data || base64Data.length < 100) {
-              throw new Error('Audio data is too small or invalid');
-            }
-
             try {
+              const base64Data = (reader.result as string).split(',')[1];
+              
+              if (!base64Data || base64Data.length === 0) {
+                throw new Error('Failed to convert audio to base64');
+              }
+            
+              console.log('VoiceRecorder: Audio converted to base64, length:', base64Data.length);
+
+              // Validate base64
+              if (base64Data.length < 100) {
+                throw new Error('Audio data too small, recording may have failed');
+              }
+
               // Detect environment and use appropriate endpoint
-              const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname.includes('lovable.dev');
+              const isDevelopment = window.location.hostname === 'localhost' || 
+                                   window.location.hostname.includes('lovable.dev') ||
+                                   window.location.hostname.includes('lovableproject.com');
               const endpoint = isDevelopment 
                 ? 'https://wdjvsuiyayjuzivvdxvh.supabase.co/functions/v1/voice-to-text'
                 : '/api/voice-to-text';
               
-              console.log('Sending audio to voice-to-text endpoint:', endpoint);
+              console.log('VoiceRecorder: Environment detection -', {
+                hostname: window.location.hostname,
+                isDevelopment,
+                endpoint
+              });
               
               const session = await supabase.auth.getSession();
+              if (!session.data.session) {
+                throw new Error('Not authenticated. Please sign in.');
+              }
+              
+              console.log('VoiceRecorder: Session check passed, user:', session.data.session.user.email);
+              
               const headers = {
                 'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'Authorization': `Bearer ${session.data.session?.access_token || ''}`,
+                'Authorization': `Bearer ${session.data.session.access_token}`,
+                'x-client-info': 'supabase-js-web/2.53.0',
                 'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndkanZzdWl5YXlqdXppdnZkeHZoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM5NjI0MDQsImV4cCI6MjA2OTUzODQwNH0.jnDsIcdlw0boiGr12YpL0bWSu98tMJbwFot8SIjmwpY'
               };
               
-              console.log('Environment:', isDevelopment ? 'development' : 'production');
-              console.log('Audio data size:', base64Data.length, 'chars');
+              console.log('VoiceRecorder: Making API call to:', endpoint);
+              console.log('VoiceRecorder: Request headers:', Object.keys(headers));
+              console.log('VoiceRecorder: Audio data size:', base64Data.length, 'chars');
+              console.log('VoiceRecorder: Request body preview:', JSON.stringify({ audio: base64Data.substring(0, 50) + '...' }));
               
-              const response = await Promise.race([
-                fetch(endpoint, {
+              const controller = new AbortController();
+              const timeoutId = setTimeout(() => {
+                console.log('VoiceRecorder: Request timeout triggered');
+                controller.abort();
+              }, 30000);
+              
+              try {
+                console.log('VoiceRecorder: Sending fetch request...');
+                const response = await fetch(endpoint, {
                   method: 'POST',
                   headers,
-                  body: JSON.stringify({ audio: base64Data })
-                }),
-                new Promise((_, reject) => 
-                  setTimeout(() => reject(new Error('Request timeout after 30 seconds')), 30000)
-                )
-              ]) as Response;
-              
-              console.log('Response status:', response.status);
-              console.log('Response headers:', Object.fromEntries(response.headers.entries()));
-              
-              if (!response.ok) {
-                const errorText = await response.text();
-                console.error('Error response body:', errorText);
-                throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
-              }
-              
-              const data = await response.json();
-              const error = null;
-              
-              if (error) {
-                console.error('Voice-to-text error:', error);
-                const errorMessage = error.message || 'Unknown error occurred';
-                console.error('Detailed error:', errorMessage);
-                
-                toast({
-                  title: "Voice processing failed",
-                  description: `Error: ${errorMessage}. Please try again.`,
-                  variant: "destructive"
+                  body: JSON.stringify({ audio: base64Data }),
+                  signal: controller.signal
                 });
+
+                clearTimeout(timeoutId);
+                console.log('VoiceRecorder: Response received');
+                console.log('VoiceRecorder: Response status:', response.status);
+                console.log('VoiceRecorder: Response ok:', response.ok);
+                console.log('VoiceRecorder: Response headers:', Object.fromEntries(response.headers.entries()));
                 
-                onSendMessage("Sorry, I couldn't process your voice message. Please try again.");
-              } else if (!data) {
-                console.error('No data received from voice-to-text function');
-                toast({
-                  title: "No response",
-                  description: "No response received from voice processing service.",
-                  variant: "destructive"
-                });
-                onSendMessage("Sorry, no response received. Please try again.");
-              } else {
-                console.log('Transcription received:', data);
+                if (!response.ok) {
+                  const errorText = await response.text();
+                  console.error('VoiceRecorder: Error response body:', errorText);
+                  throw new Error(`API request failed: ${response.status} - ${errorText}`);
+                }
+                
+                const data = await response.json();
+                console.log('VoiceRecorder: Response data:', data);
+                
+                if (!data) {
+                  throw new Error('Empty response from voice-to-text API');
+                }
+                
+                console.log('VoiceRecorder: Processing successful response...');
                 await handleAnalysisResult(data);
                 onSendMessage(data.text || "Voice message processed", data);
+                
+              } catch (fetchError) {
+                clearTimeout(timeoutId);
+                console.error('VoiceRecorder: Fetch error:', fetchError);
+                
+                if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+                  throw new Error('Request timed out after 30 seconds');
+                }
+                throw fetchError;
               }
-            } finally {
+              
+            } catch (error) {
+              console.error('VoiceRecorder: Error during API call:', error);
               setIsAnalyzing(false);
               setHasRecording(false);
               setAudioBlob(null);
+              
+              let errorMessage = 'Voice processing failed';
+              if (error instanceof Error) {
+                if (error.message.includes('timeout') || error.message.includes('timed out')) {
+                  errorMessage = 'Voice processing timed out. Please try again.';
+                } else if (error.message.includes('Failed to fetch') || error.message.includes('Network')) {
+                  errorMessage = 'Network error. Please check your connection.';
+                } else if (error.message.includes('Not authenticated')) {
+                  errorMessage = 'Authentication error. Please sign in again.';
+                } else {
+                  errorMessage = error.message;
+                }
+              }
+              
+              toast({
+                title: "Voice Recording Error",
+                description: errorMessage,
+                variant: "destructive",
+              });
+              
+              onSendMessage("Sorry, I couldn't process your voice message. Please try again.");
             }
           };
+          
+          console.log('VoiceRecorder: Starting base64 conversion...');
           reader.readAsDataURL(audioBlob);
+          
         } catch (error) {
-          console.error('Error processing audio:', error);
+          console.error('VoiceRecorder: Error processing audio blob:', error);
           setIsAnalyzing(false);
-          onSendMessage("Sorry, I couldn't process your voice message. Please try again.");
+          setHasRecording(false);
+          setAudioBlob(null);
+          
           toast({
-            title: "Error",
-            description: "Failed to process voice message.",
-            variant: "destructive"
+            title: "Recording Error",
+            description: error instanceof Error ? error.message : "Failed to process audio recording",
+            variant: "destructive",
           });
         }
+        
+        // Clean up the stream
+        console.log('VoiceRecorder: Cleaning up media stream...');
+        stream.getTracks().forEach(track => track.stop());
       };
 
       mediaRecorder.start();
       setIsRecording(true);
+      console.log('VoiceRecorder: Recording started successfully');
       
       toast({
         title: "Recording started",
         description: "Speak your idea...",
       });
+      
     } catch (error) {
+      console.error('VoiceRecorder: Failed to start recording:', error);
+      
+      let errorMessage = "Could not access microphone";
+      if (error instanceof Error) {
+        if (error.name === 'NotAllowedError') {
+          errorMessage = "Microphone access denied. Please allow microphone permissions.";
+        } else if (error.name === 'NotFoundError') {
+          errorMessage = "No microphone found. Please connect a microphone.";
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
       toast({
-        title: "Microphone access denied",
-        description: "Please allow microphone access to record voice messages.",
+        title: "Recording Failed",
+        description: errorMessage,
         variant: "destructive",
       });
     }
