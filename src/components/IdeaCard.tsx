@@ -21,7 +21,7 @@ interface IdeaCardProps {
 
 export function IdeaCard({ idea, onDelete }: IdeaCardProps) {
   return (
-    <div className="relative group mb-2">
+    <div className="relative group mb-3">
       {/* Delete button */}
       <Button
         variant="ghost"
@@ -32,38 +32,34 @@ export function IdeaCard({ idea, onDelete }: IdeaCardProps) {
         <Trash2 className="h-3 w-3" />
       </Button>
 
-      {/* User idea bubble */}
-      <div className="flex justify-end mb-2">
-        <div className="max-w-[85%] bg-gradient-primary text-primary-foreground rounded-lg p-3 shadow-sm">
-          <p className="text-sm leading-relaxed">{idea.content}</p>
-        </div>
-      </div>
-
-      {/* AI response bubble */}
-      {idea.ai_response && (
-        <div className="flex justify-start mb-2">
-          <div className="max-w-[85%] bg-card text-card-foreground border rounded-lg p-3 shadow-sm">
-            <div className="flex items-start space-x-2">
-              <Bot className="h-4 w-4 mt-0.5 text-muted-foreground flex-shrink-0" />
-              <p className="text-sm leading-relaxed">{idea.ai_response}</p>
+      {/* Idea content - left aligned */}
+      <div className="bg-blue-50 rounded-lg p-3 pr-10 relative">
+        {/* Category color indicator */}
+        {idea.category && (
+          <div 
+            className="absolute left-0 top-0 bottom-0 w-1 rounded-l-lg"
+            style={{ backgroundColor: idea.category.color }}
+          />
+        )}
+        
+        <p className="text-sm text-gray-800 leading-relaxed">{idea.content}</p>
+        
+        {/* AI response */}
+        {idea.ai_response && (
+          <div className="mt-3 pt-3 border-t border-blue-100">
+            <p className="text-xs text-gray-600 leading-relaxed">{idea.ai_response}</p>
+          </div>
+        )}
+        
+        {/* Minimal metadata - left aligned */}
+        {idea.tags && idea.tags.length > 0 && (
+          <div className="mt-2">
+            <div className="text-xs text-gray-400">
+              {idea.tags.slice(0, 2).join(', ')}
+              {idea.tags.length > 2 && ` +${idea.tags.length - 2}`}
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Minimal metadata in bottom right */}
-      <div className="flex justify-end">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          {idea.category && (
-            <span className="text-xs opacity-60">{idea.category.name}</span>
-          )}
-          {idea.tags && idea.tags.length > 0 && (
-            <span className="text-xs opacity-60">
-              {idea.tags.slice(0, 2).join(', ')}
-              {idea.tags.length > 2 && ' +' + (idea.tags.length - 2)}
-            </span>
-          )}
-        </div>
+        )}
       </div>
     </div>
   );

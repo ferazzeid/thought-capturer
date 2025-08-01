@@ -32,10 +32,10 @@ interface Idea {
 const TIME_PERIODS: { value: TimeFilter; label: string }[] = [
   { value: 'today', label: 'Today' },
   { value: 'yesterday', label: 'Yesterday' },
-  { value: 'this-week', label: 'This Week' },
-  { value: 'last-week', label: 'Last Week' },
-  { value: 'this-month', label: 'This Month' },
-  { value: 'last-month', label: 'Last Month' },
+  { value: 'this-week', label: 'TW' },
+  { value: 'last-week', label: 'LW' },
+  { value: 'this-month', label: 'TM' },
+  { value: 'last-month', label: 'LM' },
 ];
 
 export default function Ideas() {
@@ -170,16 +170,16 @@ export default function Ideas() {
         <Navigation />
         
         <div className="p-4">
-          {/* Simple time filter buttons */}
+          {/* Simple time filter buttons - single line */}
           <div className="mb-4">
-            <div className="flex flex-wrap gap-2 justify-center">
+            <div className="flex gap-1 overflow-x-auto">
               {TIME_PERIODS.map((period) => (
                 <Button
                   key={period.value}
-                  variant={timeFilter === period.value ? "default" : "outline"}
+                  variant={timeFilter === period.value ? "default" : "secondary"}
                   size="sm"
                   onClick={() => toggleTimeFilter(period.value)}
-                  className="text-xs px-3 py-1 h-8 rounded-lg"
+                  className="text-xs px-3 py-1 h-8 flex-shrink-0"
                 >
                   {period.label}
                 </Button>
