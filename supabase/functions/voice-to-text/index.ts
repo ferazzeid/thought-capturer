@@ -38,12 +38,73 @@ function processBase64Chunks(base64String: string, chunkSize = 32768) {
 }
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  console.log(`Voice-to-text function called: ${req.method} ${req.url}`)
+  console.log('Request headers:', Object.fromEntries(req.headers.entries()))
+
   try {
-    const { audio } = await req.json()
+    // Validate environment variables
+    const requiredEnvVars = ['SUPABASE_URL', 'SUPABASE_ANON_KEY']
+    for (const envVar of requiredEnvVars) {
+      if (!Deno.env.get(envVar)) {
+        console.error(`Missing environment variable: ${envVar}`)
+        return new Response(
+          JSON.stringify({ error: `Server configuration error: Missing ${envVar}` }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+    }
+
+    // Validate request body exists and content type
+    const contentType = req.headers.get('content-type') || ''
+    console.log('Content-Type:', contentType)
+    
+    if (!contentType.includes('application/json')) {
+      console.error('Invalid content type:', contentType)
+      return new Response(
+        JSON.stringify({ error: 'Content-Type must be application/json' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Check if request has a body
+    const contentLength = req.headers.get('content-length')
+    console.log('Content-Length:', contentLength)
+    
+    if (contentLength === '0' || contentLength === null) {
+      console.error('Empty request body')
+      return new Response(
+        JSON.stringify({ error: 'Request body is empty' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Try to parse JSON with proper error handling
+    let requestData
+    try {
+      const bodyText = await req.text()
+      console.log('Request body length:', bodyText.length)
+      console.log('Request body preview:', bodyText.substring(0, 100) + '...')
+      
+      if (!bodyText.trim()) {
+        throw new Error('Request body is empty')
+      }
+      
+      requestData = JSON.parse(bodyText)
+    } catch (jsonError) {
+      console.error('JSON parsing error:', jsonError)
+      console.error('Request body was not valid JSON')
+      return new Response(
+        JSON.stringify({ error: 'Invalid JSON in request body' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    const { audio } = requestData
     
     if (!audio) {
       throw new Error('No audio data provided')

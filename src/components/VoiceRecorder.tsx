@@ -79,7 +79,10 @@ export function VoiceRecorder({ onSendMessage, isProcessing = false }: VoiceReco
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+      
+      // Use WebM format consistently for better compatibility
+      const options = { mimeType: 'audio/webm' };
+      const mediaRecorder = new MediaRecorder(stream, options);
       mediaRecorderRef.current = mediaRecorder;
 
       const audioChunks: Blob[] = [];
@@ -88,7 +91,7 @@ export function VoiceRecorder({ onSendMessage, isProcessing = false }: VoiceReco
       };
 
       mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
         setAudioBlob(audioBlob);
         stream.getTracks().forEach(track => track.stop());
         
@@ -99,24 +102,50 @@ export function VoiceRecorder({ onSendMessage, isProcessing = false }: VoiceReco
           const reader = new FileReader();
           reader.onloadend = async () => {
             const base64Audio = reader.result as string;
-            const base64Data = base64Audio.split(',')[1]; // Remove data:audio/wav;base64, prefix
+            const base64Data = base64Audio.split(',')[1]; // Remove data:audio/webm;base64, prefix
             
             console.log('Sending audio to voice-to-text function...');
+            console.log('Audio data length:', base64Data?.length || 0);
             
+            // Validate audio data before sending
+            if (!base64Data || base64Data.length < 100) {
+              throw new Error('Audio data is too small or invalid');
+            }
+
             try {
-              // Send to Supabase edge function
-              const { data, error } = await supabase.functions.invoke('voice-to-text', {
-                body: { audio: base64Data }
-              });
+              // Send to Supabase edge function with timeout
+              const { data, error } = await Promise.race([
+                supabase.functions.invoke('voice-to-text', {
+                  body: { audio: base64Data },
+                  headers: {
+                    'Content-Type': 'application/json'
+                  }
+                }),
+                new Promise((_, reject) => 
+                  setTimeout(() => reject(new Error('Request timeout')), 30000)
+                )
+              ]) as any;
               
               if (error) {
                 console.error('Voice-to-text error:', error);
-                onSendMessage("Sorry, I couldn't process your voice message. Please try again.");
+                const errorMessage = error.message || 'Unknown error occurred';
+                console.error('Detailed error:', errorMessage);
+                
                 toast({
-                  title: "Error",
-                  description: "Failed to process voice message. Please try again.",
+                  title: "Voice processing failed",
+                  description: `Error: ${errorMessage}. Please try again.`,
                   variant: "destructive"
                 });
+                
+                onSendMessage("Sorry, I couldn't process your voice message. Please try again.");
+              } else if (!data) {
+                console.error('No data received from voice-to-text function');
+                toast({
+                  title: "No response",
+                  description: "No response received from voice processing service.",
+                  variant: "destructive"
+                });
+                onSendMessage("Sorry, no response received. Please try again.");
               } else {
                 console.log('Transcription received:', data);
                 await handleAnalysisResult(data);
