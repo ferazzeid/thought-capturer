@@ -143,19 +143,10 @@ export function VoiceRecorder({ onSendMessage, isProcessing = false }: VoiceReco
                 throw new Error('Audio data too small, recording may have failed');
               }
 
-              // Detect environment and use appropriate endpoint
-              const isDevelopment = window.location.hostname === 'localhost' || 
-                                   window.location.hostname.includes('lovable.dev') ||
-                                   window.location.hostname.includes('lovableproject.com');
-              const endpoint = isDevelopment 
-                ? 'https://wdjvsuiyayjuzivvdxvh.supabase.co/functions/v1/voice-to-text'
-                : '/api/voice-to-text';
+              // Always use direct Supabase Edge Function URL
+              const endpoint = 'https://wdjvsuiyayjuzivvdxvh.supabase.co/functions/v1/voice-to-text';
               
-              console.log('VoiceRecorder: Environment detection -', {
-                hostname: window.location.hostname,
-                isDevelopment,
-                endpoint
-              });
+              console.log('VoiceRecorder: Using direct Supabase endpoint:', endpoint);
               
               const session = await supabase.auth.getSession();
               if (!session.data.session) {
