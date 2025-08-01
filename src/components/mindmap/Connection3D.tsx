@@ -49,7 +49,6 @@ export function Connection3D({ edge, nodes }: Connection3DProps) {
         color="#8b5cf6" 
         transparent 
         opacity={0.4}
-        linewidth={2}
       />
     </line>
   );
