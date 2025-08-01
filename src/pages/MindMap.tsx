@@ -95,12 +95,14 @@ const MindMap = () => {
       <main className="pb-safe h-[calc(100vh-120px)]">
         <div className="w-full h-full relative">
           {is3D ? (
-            <ThreeMindMap 
-              nodes={nodes}
-              edges={edges}
-              searchTerm={searchTerm}
-              filteredNodes={filteredNodes}
-            />
+            <div className="w-full h-full">
+              <ThreeMindMap 
+                nodes={nodes}
+                edges={edges}
+                searchTerm={searchTerm}
+                filteredNodes={filteredNodes}
+              />
+            </div>
           ) : (
             <ReactFlow
               nodes={filteredNodes}
