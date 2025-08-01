@@ -113,8 +113,13 @@ export function VoiceRecorder({ onSendMessage, isProcessing = false }: VoiceReco
             }
 
             try {
-              // Send to Express proxy endpoint with timeout and proper headers
-              console.log('Sending audio to voice-to-text API endpoint...');
+              // Detect environment and use appropriate endpoint
+              const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname.includes('lovable.dev');
+              const endpoint = isDevelopment 
+                ? 'https://wdjvsuiyayjuzivvdxvh.supabase.co/functions/v1/voice-to-text'
+                : '/api/voice-to-text';
+              
+              console.log('Sending audio to voice-to-text endpoint:', endpoint);
               
               const session = await supabase.auth.getSession();
               const headers = {
@@ -124,12 +129,11 @@ export function VoiceRecorder({ onSendMessage, isProcessing = false }: VoiceReco
                 'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndkanZzdWl5YXlqdXppdnZkeHZoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM5NjI0MDQsImV4cCI6MjA2OTUzODQwNH0.jnDsIcdlw0boiGr12YpL0bWSu98tMJbwFot8SIjmwpY'
               };
               
-              console.log('Request headers:', Object.keys(headers));
-              console.log('Request URL:', '/api/voice-to-text');
+              console.log('Environment:', isDevelopment ? 'development' : 'production');
               console.log('Audio data size:', base64Data.length, 'chars');
               
               const response = await Promise.race([
-                fetch('/api/voice-to-text', {
+                fetch(endpoint, {
                   method: 'POST',
                   headers,
                   body: JSON.stringify({ audio: base64Data })
