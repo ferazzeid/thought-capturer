@@ -45,13 +45,13 @@ export function Connection3D({ edge, nodes }: Connection3DProps) {
   if (!geometry) return null;
 
   return (
-    <line>
+    <mesh>
       <primitive object={geometry} attach="geometry" />
       <lineBasicMaterial 
         color="#8b5cf6" 
         transparent 
         opacity={0.4}
       />
-    </line>
+    </mesh>
   );
 }
