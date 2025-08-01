@@ -33,18 +33,20 @@ export function Connection3D({ edge, nodes }: Connection3DProps) {
     return curve.getPoints(20);
   }, [edge, nodes]);
 
-  if (points.length === 0) return null;
+  const geometry = useMemo(() => {
+    if (points.length === 0) return null;
+    
+    const geometry = new THREE.BufferGeometry();
+    const positions = new Float32Array(points.flatMap(p => [p.x, p.y, p.z]));
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    return geometry;
+  }, [points]);
+
+  if (!geometry) return null;
 
   return (
     <line>
-      <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          count={points.length}
-          array={new Float32Array(points.flatMap(p => [p.x, p.y, p.z]))}
-          itemSize={3}
-        />
-      </bufferGeometry>
+      <primitive object={geometry} attach="geometry" />
       <lineBasicMaterial 
         color="#8b5cf6" 
         transparent 
