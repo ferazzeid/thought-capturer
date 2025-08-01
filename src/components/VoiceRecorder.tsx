@@ -116,14 +116,22 @@ export function VoiceRecorder({ onSendMessage, isProcessing = false }: VoiceReco
               // Send to Express proxy endpoint with timeout and proper headers
               console.log('Sending audio to voice-to-text API endpoint...');
               
+              const session = await supabase.auth.getSession();
+              const headers = {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${session.data.session?.access_token || ''}`,
+                'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndkanZzdWl5YXlqdXppdnZkeHZoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM5NjI0MDQsImV4cCI6MjA2OTUzODQwNH0.jnDsIcdlw0boiGr12YpL0bWSu98tMJbwFot8SIjmwpY'
+              };
+              
+              console.log('Request headers:', Object.keys(headers));
+              console.log('Request URL:', '/api/voice-to-text');
+              console.log('Audio data size:', base64Data.length, 'chars');
+              
               const response = await Promise.race([
                 fetch('/api/voice-to-text', {
                   method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || ''}`
-                  },
+                  headers,
                   body: JSON.stringify({ audio: base64Data })
                 }),
                 new Promise((_, reject) => 
@@ -131,8 +139,13 @@ export function VoiceRecorder({ onSendMessage, isProcessing = false }: VoiceReco
                 )
               ]) as Response;
               
+              console.log('Response status:', response.status);
+              console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+              
               if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                const errorText = await response.text();
+                console.error('Error response body:', errorText);
+                throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
               }
               
               const data = await response.json();

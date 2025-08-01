@@ -24,27 +24,38 @@ app.use(express.static(join(__dirname, 'public')));
 
 // API proxy to Supabase Edge Functions
 app.post('/api/voice-to-text', async (req, res) => {
+  console.log('Voice-to-text API called:', {
+    method: req.method,
+    path: req.path,
+    headers: Object.keys(req.headers),
+    bodySize: JSON.stringify(req.body).length
+  });
+  
   try {
     const response = await fetch('https://wdjvsuiyayjuzivvdxvh.supabase.co/functions/v1/voice-to-text', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': req.headers.authorization || '',
-        'apikey': req.headers.apikey || ''
+        'apikey': req.headers.apikey || process.env.SUPABASE_ANON_KEY || ''
       },
       body: JSON.stringify(req.body)
     });
 
+    console.log('Supabase response status:', response.status);
     const data = await response.json();
+    console.log('Supabase response data keys:', Object.keys(data));
     
     if (!response.ok) {
+      console.error('Supabase error response:', data);
       return res.status(response.status).json(data);
     }
 
+    console.log('Successfully proxied voice-to-text request');
     res.json(data);
   } catch (error) {
     console.error('Error proxying to voice-to-text function:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error', details: error.message });
   }
 });
 
@@ -91,6 +102,10 @@ const server = createServer(app);
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log('Available routes:');
+  console.log('  POST /api/voice-to-text - Voice-to-text proxy');
+  console.log('  POST /functions/v1/* - General function proxy');
+  console.log('  GET /* - Static file serving');
 });
 
 // Handle graceful shutdown
