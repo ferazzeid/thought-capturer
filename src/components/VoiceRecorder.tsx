@@ -16,6 +16,7 @@ export function VoiceRecorder({ onSendMessage, isProcessing = false }: VoiceReco
   const [hasRecording, setHasRecording] = useState(false);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisStatus, setAnalysisStatus] = useState<string>('');
   const [clarificationItems, setClarificationItems] = useState<any[]>([]);
   const [pendingIdeas, setPendingIdeas] = useState<any[]>([]);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -50,6 +51,9 @@ export function VoiceRecorder({ onSendMessage, isProcessing = false }: VoiceReco
       
       const ideaCount = ideas.length || 1;
       const isMultiple = data.multiple_ideas && ideaCount > 1;
+      
+      setIsAnalyzing(false);
+      setAnalysisStatus('');
       
       toast({
         title: "Ideas saved successfully!",
@@ -125,6 +129,7 @@ export function VoiceRecorder({ onSendMessage, isProcessing = false }: VoiceReco
 
           setAudioBlob(audioBlob);
           setIsAnalyzing(true);
+          setAnalysisStatus('Converting audio to text...');
           
           // Convert to base64
           const reader = new FileReader();
@@ -174,7 +179,8 @@ export function VoiceRecorder({ onSendMessage, isProcessing = false }: VoiceReco
               }, 30000);
               
               try {
-                console.log('VoiceRecorder: Sending fetch request...');
+              setAnalysisStatus('Transcribing audio with AI...');
+              console.log('VoiceRecorder: Sending fetch request...');
                 const response = await fetch(endpoint, {
                   method: 'POST',
                   headers,
@@ -201,6 +207,13 @@ export function VoiceRecorder({ onSendMessage, isProcessing = false }: VoiceReco
                   throw new Error('Empty response from voice-to-text API');
                 }
                 
+                setAnalysisStatus('Analyzing ideas and finding patterns...');
+                
+                // Simulate the background analysis steps for user feedback
+                setTimeout(() => setAnalysisStatus('Checking for similar ideas...'), 500);
+                setTimeout(() => setAnalysisStatus('Categorizing and tagging...'), 1000);
+                setTimeout(() => setAnalysisStatus('Finalizing analysis...'), 1500);
+                
                 console.log('VoiceRecorder: Processing successful response...');
                 await handleAnalysisResult(data);
                 onSendMessage(data.text || "Voice message processed", data);
@@ -218,6 +231,7 @@ export function VoiceRecorder({ onSendMessage, isProcessing = false }: VoiceReco
             } catch (error) {
               console.error('VoiceRecorder: Error during API call:', error);
               setIsAnalyzing(false);
+              setAnalysisStatus('');
               setHasRecording(false);
               setAudioBlob(null);
               
@@ -250,6 +264,7 @@ export function VoiceRecorder({ onSendMessage, isProcessing = false }: VoiceReco
         } catch (error) {
           console.error('VoiceRecorder: Error processing audio blob:', error);
           setIsAnalyzing(false);
+          setAnalysisStatus('');
           setHasRecording(false);
           setAudioBlob(null);
           
@@ -388,11 +403,18 @@ export function VoiceRecorder({ onSendMessage, isProcessing = false }: VoiceReco
             </p>
           )}
           {isAnalyzing && (
-            <div className="flex items-center justify-center space-x-2">
-              <Brain className="h-4 w-4 text-primary animate-pulse" />
-              <p className="text-sm text-muted-foreground animate-pulse">
-                Analyzing your ideas...
-              </p>
+            <div className="flex flex-col items-center space-y-2">
+              <div className="flex items-center justify-center space-x-2">
+                <Brain className="h-4 w-4 text-primary animate-pulse" />
+                <p className="text-sm text-muted-foreground animate-pulse">
+                  Analyzing your ideas...
+                </p>
+              </div>
+              {analysisStatus && (
+                <p className="text-xs text-muted-foreground/70 animate-pulse">
+                  {analysisStatus}
+                </p>
+              )}
             </div>
           )}
           {hasRecording && !isAnalyzing && (
