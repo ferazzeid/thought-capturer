@@ -232,36 +232,35 @@ serve(async (req) => {
       console.log('Running fast analysis...')
       const categoryNames = categories ? categories.map(c => c.name).join(', ') : 'Business, Technology, Creative, Personal, Learning, Health & Fitness, Travel, Finance, Relationships, Other'
       
-      const quickAnalysisPrompt = `Quickly analyze this voice transcription for ideas:
+      const quickAnalysisPrompt = `Analyze this transcription for ideas quickly: "${transcriptText}"
 
-Text: "${transcriptText}"
+Similar ideas found: ${JSON.stringify(similarIdeas.slice(0, 2))}
 
-Categories: ${categoryNames}
+CRITICAL: Return ONLY valid JSON. No other text. Use this exact format:
 
-Return JSON with this structure (respond quickly, prioritize speed over perfection):
 {
-  "multiple_ideas": boolean,
+  "multiple_ideas": false,
   "ideas": [
     {
-      "content": "extracted idea text",
-      "idea_type": "main|sub-component|follow-up", 
-      "category": "best_fit_category",
+      "content": "main idea extracted from transcription",
+      "idea_type": "main",
+      "category": "Technology",
       "sequence": 1,
-      "tags": ["key-tag1", "key-tag2"],
-      "ai_auto_tags": ["auto-tag1", "auto-tag2"],
-      "confidence_level": 0.8,
-      "needs_clarification": false,
-      "embedding": ${queryEmbedding ? JSON.stringify(queryEmbedding) : 'null'}
+      "tags": ["ui", "design"],
+      "ai_auto_tags": ["interface", "buttons"],
+      "confidence_level": 0.9,
+      "needs_clarification": false
     }
-  ],
-  "similar_ideas": ${JSON.stringify(similarIdeas)}
+  ]
 }
 
-Guidelines:
-- Extract 1-3 main ideas maximum 
-- Use simple categorization
-- Keep confidence levels realistic (0.7-1.0)
-- Focus on speed over detailed analysis`
+Rules:
+- Extract 1-2 main ideas maximum to avoid truncation
+- Use categories: Business, Technology, Creative, Personal, General
+- Keep all text fields short and concise
+- Confidence: 0.7-1.0 only
+- No embedding field needed
+- Ensure valid JSON syntax`
 
       const analysisResponse = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -285,25 +284,131 @@ Guidelines:
         const analysisResult = await analysisResponse.json()
         console.log('Fast analysis completed:', analysisResult)
         
-        // Parse the JSON content from the GPT response
-        const analysisData = JSON.parse(analysisResult.choices[0].message.content)
+        try {
+          // Parse the JSON content from the GPT response with error handling
+          const rawContent = analysisResult.choices[0].message.content;
+          
+          // Try to parse the JSON
+          let analysisData;
+          try {
+            analysisData = JSON.parse(rawContent);
+          } catch (parseError) {
+            console.error('JSON parsing failed, attempting to fix:', parseError);
+            
+            // Try to fix common JSON issues
+            let fixedContent = rawContent;
+            
+            // Remove trailing commas
+            fixedContent = fixedContent.replace(/,(\s*[}\]])/g, '$1');
+            
+            // Try to complete truncated objects/arrays
+            const openBraces = (fixedContent.match(/{/g) || []).length;
+            const closeBraces = (fixedContent.match(/}/g) || []).length;
+            const openBrackets = (fixedContent.match(/\[/g) || []).length;
+            const closeBrackets = (fixedContent.match(/]/g) || []).length;
+            
+            // Add missing closing braces/brackets
+            for (let i = 0; i < openBraces - closeBraces; i++) {
+              fixedContent += '}';
+            }
+            for (let i = 0; i < openBrackets - closeBrackets; i++) {
+              fixedContent += ']';
+            }
+            
+            try {
+              analysisData = JSON.parse(fixedContent);
+              console.log('Successfully fixed JSON parsing');
+            } catch (fixError) {
+              console.error('Could not fix JSON, using fallback');
+              throw fixError;
+            }
+          }
+          
+          // Validate the analysis data structure
+          if (!analysisData || typeof analysisData !== 'object') {
+            throw new Error('Invalid analysis data structure');
+          }
+          
+          // Ensure ideas array exists
+          if (!Array.isArray(analysisData.ideas)) {
+            analysisData.ideas = [];
+          }
+          
+          // Return optimized analysis results
+          return new Response(
+            JSON.stringify({ 
+              text: transcriptText,
+              ideas: analysisData.ideas,
+              multiple_ideas: analysisData.multiple_ideas || analysisData.ideas.length > 1,
+              similar_ideas: analysisData.similar_ideas || similarIdeas
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        } catch (dataError) {
+          console.error('Analysis data processing failed:', dataError);
+          throw dataError;
+        }
+      } else {
+        const errorText = await analysisResponse.text()
+        console.error('Fast analysis failed:', errorText)
+        throw new Error(`OpenAI analysis failed: ${analysisResponse.status} - ${errorText}`)
+      }
+    } catch (analysisError) {
+      console.error('Analysis error:', analysisError)
+      
+      // Fallback: return transcription with basic categorization attempt
+      try {
+        // Simple keyword-based categorization as fallback
+        const lowerText = transcriptText.toLowerCase();
+        let category = 'General';
+        let confidence = 0.6;
         
-        // Return optimized analysis results
+        if (lowerText.includes('business') || lowerText.includes('startup') || lowerText.includes('company')) {
+          category = 'Business';
+          confidence = 0.7;
+        } else if (lowerText.includes('tech') || lowerText.includes('app') || lowerText.includes('software') || lowerText.includes('code')) {
+          category = 'Technology';
+          confidence = 0.7;
+        } else if (lowerText.includes('creative') || lowerText.includes('design') || lowerText.includes('art')) {
+          category = 'Creative';
+          confidence = 0.7;
+        }
+        
+        const fallbackIdea = {
+          content: transcriptText,
+          idea_type: 'main',
+          category,
+          sequence: 1,
+          tags: [],
+          ai_auto_tags: ['voice-transcribed', 'fallback-analysis'],
+          confidence_level: confidence,
+          needs_clarification: false
+        };
+        
         return new Response(
           JSON.stringify({ 
             text: transcriptText,
-            ideas: analysisData.ideas || [],
-            multiple_ideas: analysisData.multiple_ideas || false,
-            similar_ideas: analysisData.similar_ideas || similarIdeas
+            ideas: [fallbackIdea],
+            multiple_ideas: false,
+            similar_ideas: similarIdeas,
+            fallback_analysis: true,
+            analysis_error: analysisError.message
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
-      } else {
-        console.error('Fast analysis API error:', await analysisResponse.text())
+      } catch (fallbackError) {
+        console.error('Fallback analysis also failed:', fallbackError);
+        
+        // Last resort: just return transcription
+        return new Response(
+          JSON.stringify({ 
+            text: transcriptText,
+            error: 'Both analysis and fallback failed, but transcription succeeded',
+            fallback: true
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
       }
-      
-    } catch (error) {
-      console.error('Fast analysis error:', error)
     }
 
     // Fallback response if analysis fails

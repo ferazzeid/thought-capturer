@@ -23,7 +23,31 @@ export function VoiceRecorder({ onSendMessage, isProcessing = false }: VoiceReco
   const { toast } = useToast();
 
   const handleAnalysisResult = async (data: any) => {
+    console.log('VoiceRecorder: Processing analysis result:', data);
+    
+    // Handle different response types
+    if (data.fallback || data.error) {
+      // Simple transcription or error case
+      setIsAnalyzing(false);
+      setAnalysisStatus('');
+      
+      let description = "Voice transcribed successfully";
+      if (data.fallback_analysis) {
+        description = "Voice analyzed with basic categorization";
+      } else if (data.error) {
+        description = "Transcription completed, analysis failed";
+      }
+      
+      toast({
+        title: "Voice Recording Processed",
+        description,
+        variant: data.error ? "default" : "default",
+      });
+      return;
+    }
+    
     const ideas = data.ideas || [];
+    console.log('VoiceRecorder: Processing ideas:', ideas);
     
     // Check for clarifications needed
     const needsClarification = ideas.filter((idea: any) => idea.needs_clarification);
@@ -230,12 +254,13 @@ export function VoiceRecorder({ onSendMessage, isProcessing = false }: VoiceReco
                   throw new Error('Empty response from voice-to-text API');
                 }
                 
-                setAnalysisStatus('Analyzing ideas and finding patterns...');
-                
-                // Update status to reflect actual backend processing
-                setTimeout(() => setAnalysisStatus('Checking for similar ideas...'), 1000);
-                setTimeout(() => setAnalysisStatus('Categorizing and tagging...'), 2000);
-                setTimeout(() => setAnalysisStatus('Finalizing analysis...'), 3000);
+                // Check if we got fallback analysis or full analysis
+                if (data.fallback_analysis || data.fallback) {
+                  console.log('VoiceRecorder: Received fallback analysis');
+                  setAnalysisStatus('Analysis completed with basic categorization');
+                } else {
+                  setAnalysisStatus('Analysis completed successfully');
+                }
                 
                 console.log('VoiceRecorder: Processing successful response...');
                 await handleAnalysisResult(data);
