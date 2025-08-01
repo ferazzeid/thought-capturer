@@ -113,16 +113,19 @@ export function VoiceRecorder({ onSendMessage, isProcessing = false }: VoiceReco
             }
 
             try {
-              // Send to Supabase edge function with timeout
+              // Send to Supabase edge function with timeout and proper headers
+              console.log('Invoking voice-to-text function with audio data...');
+              
               const { data, error } = await Promise.race([
                 supabase.functions.invoke('voice-to-text', {
                   body: { audio: base64Data },
                   headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
                   }
                 }),
                 new Promise((_, reject) => 
-                  setTimeout(() => reject(new Error('Request timeout')), 30000)
+                  setTimeout(() => reject(new Error('Request timeout after 30 seconds')), 30000)
                 )
               ]) as any;
               

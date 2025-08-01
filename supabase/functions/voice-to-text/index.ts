@@ -5,6 +5,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
 // Process base64 in chunks to prevent memory issues
@@ -46,6 +47,15 @@ serve(async (req) => {
   console.log(`Voice-to-text function called: ${req.method} ${req.url}`)
   console.log('Request headers:', Object.fromEntries(req.headers.entries()))
 
+  // Only accept POST requests for the actual voice-to-text processing
+  if (req.method !== 'POST') {
+    console.log(`Rejecting ${req.method} request - only POST supported`)
+    return new Response(
+      JSON.stringify({ error: 'Only POST method supported' }),
+      { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
   try {
     // Validate environment variables
     const requiredEnvVars = ['SUPABASE_URL', 'SUPABASE_ANON_KEY']
@@ -59,14 +69,14 @@ serve(async (req) => {
       }
     }
 
-    // Validate request body exists and content type
+    // Validate request body exists and content type for POST requests
     const contentType = req.headers.get('content-type') || ''
     console.log('Content-Type:', contentType)
     
     if (!contentType.includes('application/json')) {
-      console.error('Invalid content type:', contentType)
+      console.error('Invalid content type for POST request:', contentType)
       return new Response(
-        JSON.stringify({ error: 'Content-Type must be application/json' }),
+        JSON.stringify({ error: 'Content-Type must be application/json for API requests' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
