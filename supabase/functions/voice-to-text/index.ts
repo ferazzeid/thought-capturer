@@ -118,6 +118,44 @@ serve(async (req) => {
 
     const transcriptText = result.text
     
+    // Generate embedding for semantic similarity search
+    console.log('Generating embedding for semantic search...')
+    const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${profile.api_key}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'text-embedding-ada-002',
+        input: transcriptText,
+      }),
+    })
+
+    if (!embeddingResponse.ok) {
+      console.error('Embedding API error:', await embeddingResponse.text())
+    }
+
+    let queryEmbedding = null
+    let similarIdeas = []
+    
+    if (embeddingResponse.ok) {
+      const embeddingResult = await embeddingResponse.json()
+      queryEmbedding = embeddingResult.data[0].embedding
+
+      // Find similar ideas using vector search
+      const { data: foundSimilarIdeas, error: similarError } = await supabase
+        .rpc('find_similar_ideas', {
+          query_embedding: queryEmbedding,
+          similarity_threshold: 0.75,
+          match_count: 5
+        })
+
+      if (!similarError && foundSimilarIdeas) {
+        similarIdeas = foundSimilarIdeas
+      }
+    }
+    
     // Analyze the transcription for multiple ideas and categorization
     console.log('Analyzing transcription for ideas and categories...')
     
@@ -137,9 +175,14 @@ serve(async (req) => {
         `- "${idea.content}" (tags: ${idea.ai_auto_tags?.join(', ') || 'none'})`
       ).join('\n')}` : ''
 
-    const analysisPrompt = `Analyze this transcribed text using intelligent idea organization. Your task is to:
+    const similarIdeasContext = similarIdeas?.length ?
+      `\n\nSemantically similar ideas (based on meaning):\n${similarIdeas.map((idea: any) =>
+        `- "${idea.content}" (${(idea.similarity * 100).toFixed(1)}% similar, type: ${idea.idea_type})`
+      ).join('\n')}` : ''
+
+    const analysisPrompt = `Analyze this transcribed text using intelligent idea organization and semantic understanding. Your task is to:
 1. Identify main ideas vs sub-components vs follow-up ideas
-2. Determine semantic relationships with recent ideas
+2. Determine semantic relationships with recent and similar ideas
 3. Set confidence levels for uncertain groupings
 4. Extract relevant auto-tags for semantic linking
 
@@ -147,6 +190,7 @@ Text: "${transcriptText}"
 
 Available categories: ${categoryNames}
 ${recentIdeasContext}
+${similarIdeasContext}
 
 Return a JSON response with this exact structure:
 {
@@ -162,9 +206,11 @@ Return a JSON response with this exact structure:
       "confidence_level": 0.95,
       "potential_master_idea": "content of related recent idea if this should be linked",
       "needs_clarification": false,
-      "clarification_question": "Should this be part of your X project?"
+      "clarification_question": "Should this be part of your X project?",
+      "embedding": ${queryEmbedding ? JSON.stringify(queryEmbedding) : 'null'}
     }
-  ]
+  ],
+  "similar_ideas": ${JSON.stringify(similarIdeas)}
 }
 
 CRITICAL Guidelines:
@@ -176,9 +222,10 @@ CRITICAL Guidelines:
 - ai_auto_tags: semantic tags for automatic linking (entities, projects, concepts)
 - tags: user-facing tags (urgency, timing, action items)
 - potential_master_idea: exact content match from recent ideas if this should be linked
-- If 80%+ semantic similarity with recent idea, suggest linking with needs_clarification
+- If 80%+ semantic similarity with similar ideas, suggest linking with needs_clarification
 - Number ideas in sequence, prioritize main ideas first
-- Keep original wording but clean up speech-to-text errors`
+- Keep original wording but clean up speech-to-text errors
+- Include embedding for future semantic searches`
 
     const analysisResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -189,7 +236,7 @@ CRITICAL Guidelines:
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         messages: [
-          { role: 'system', content: 'You are a helpful assistant that analyzes transcribed voice recordings to extract and categorize ideas. Always respond with valid JSON.' },
+          { role: 'system', content: 'You are a helpful assistant that analyzes transcribed voice recordings to extract and categorize ideas using semantic understanding. Always respond with valid JSON.' },
           { role: 'user', content: analysisPrompt }
         ],
         temperature: 0.3,
@@ -211,9 +258,11 @@ CRITICAL Guidelines:
             tags: [],
             ai_auto_tags: [],
             confidence_level: 1.0,
-            needs_clarification: false
+            needs_clarification: false,
+            embedding: queryEmbedding
           }],
-          multiple_ideas: false
+          multiple_ideas: false,
+          similar_ideas: similarIdeas
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
@@ -234,8 +283,10 @@ CRITICAL Guidelines:
           content: transcriptText,
           category: null,
           sequence: 1,
-          tags: []
-        }]
+          tags: [],
+          embedding: queryEmbedding
+        }],
+        similar_ideas: similarIdeas
       }
     }
 
@@ -255,7 +306,8 @@ CRITICAL Guidelines:
       JSON.stringify({ 
         text: transcriptText,
         ideas: ideasWithCategoryIds,
-        multiple_ideas: parsedAnalysis.multiple_ideas
+        multiple_ideas: parsedAnalysis.multiple_ideas,
+        similar_ideas: parsedAnalysis.similar_ideas || similarIdeas
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )

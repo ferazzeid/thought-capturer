@@ -82,7 +82,12 @@ export function ChatInterface({ apiKey }: ChatInterfaceProps) {
           category_id: idea.category_id,
           parent_recording_id: parentRecordingId,
           idea_sequence: idea.sequence || index + 1,
-          tags: idea.tags || []
+          tags: idea.tags || [],
+          ai_auto_tags: idea.ai_auto_tags || [],
+          idea_type: idea.idea_type || 'main',
+          confidence_level: idea.confidence_level || 1.0,
+          needs_clarification: idea.needs_clarification || false,
+          embedding: idea.embedding || null
         }));
 
         const { error } = await supabase
