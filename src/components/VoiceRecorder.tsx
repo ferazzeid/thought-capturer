@@ -25,28 +25,21 @@ export function VoiceRecorder({ onSendMessage, isProcessing = false }: VoiceReco
   const handleAnalysisResult = async (data: any) => {
     console.log('VoiceRecorder: Processing analysis result:', data);
     
-    // Handle different response types
-    if (data.fallback || data.error) {
-      // Simple transcription or error case
+    const ideas = data.ideas || [];
+    console.log('VoiceRecorder: Ideas found:', ideas.length, ideas);
+    
+    // Only exit early if there are truly NO ideas AND it's an error case
+    if ((!ideas || ideas.length === 0) && data.error && !data.fallback_analysis) {
       setIsAnalyzing(false);
       setAnalysisStatus('');
       
-      let description = "Voice transcribed successfully";
-      if (data.fallback_analysis) {
-        description = "Voice analyzed with basic categorization";
-      } else if (data.error) {
-        description = "Transcription completed, analysis failed";
-      }
-      
       toast({
         title: "Voice Recording Processed",
-        description,
-        variant: data.error ? "default" : "default",
+        description: "Transcription completed, analysis failed",
+        variant: "default",
       });
       return;
     }
-    
-    const ideas = data.ideas || [];
     console.log('VoiceRecorder: Processing ideas:', ideas);
     
     // Check for clarifications needed
